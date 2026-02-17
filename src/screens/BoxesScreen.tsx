@@ -72,6 +72,17 @@ function scaledPointRange(type: BoxType, followers: number): [number, number] {
 }
 
 const STORAGE_KEY = 'realbet_box_results';
+const AUTH_STATE_KEY = 'realbet_auth_state';
+
+interface SavedAuthState {
+  twitterVerified: boolean;
+  twitterId: string | null;
+  twitterUsername: string | null;
+  followersCount: number;
+  discordVerified: boolean;
+  discordUserId: string | null;
+  tasks: { follow: boolean; discord: boolean; wallet: boolean };
+}
 
 function loadSavedBoxes(): BoxData[] | null {
   try {
@@ -84,6 +95,20 @@ function loadSavedBoxes(): BoxData[] | null {
 function saveBoxes(boxes: BoxData[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(boxes));
+  } catch { /* ignore */ }
+}
+
+function loadAuthState(): SavedAuthState | null {
+  try {
+    const saved = localStorage.getItem(AUTH_STATE_KEY);
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch { return null; }
+}
+
+function saveAuthState(state: SavedAuthState) {
+  try {
+    localStorage.setItem(AUTH_STATE_KEY, JSON.stringify(state));
   } catch { /* ignore */ }
 }
 
@@ -113,19 +138,20 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   }
 
   const [subScreen, setSubScreen] = useState<SubScreen>(() => deriveSubScreen(initialBoxes));
-  const [twitterId, setTwitterId] = useState<string | null>(null);
-  const [twitterUsername, setTwitterUsername] = useState<string | null>(null);
-  const [followersCount, setFollowersCount] = useState<number>(0);
+  const [savedAuth] = useState(() => loadAuthState());
+  const [twitterId, setTwitterId] = useState<string | null>(() => savedAuth?.twitterId ?? null);
+  const [twitterUsername, setTwitterUsername] = useState<string | null>(() => savedAuth?.twitterUsername ?? null);
+  const [followersCount, setFollowersCount] = useState<number>(() => savedAuth?.followersCount ?? 0);
   const [boxes, setBoxes] = useState<BoxData[]>(initialBoxes);
 
-  const [tasks, setTasks] = useState({
+  const [tasks, setTasks] = useState(() => savedAuth?.tasks ?? {
     follow: false,
     discord: false,
     wallet: false,
   });
-  const [twitterVerified, setTwitterVerified] = useState(false);
-  const [discordVerified, setDiscordVerified] = useState(false);
-  const [discordUserId, setDiscordUserId] = useState<string | null>(null);
+  const [twitterVerified, setTwitterVerified] = useState(() => savedAuth?.twitterVerified ?? false);
+  const [discordVerified, setDiscordVerified] = useState(() => savedAuth?.discordVerified ?? false);
+  const [discordUserId, setDiscordUserId] = useState<string | null>(() => savedAuth?.discordUserId ?? null);
   const [taskLoading, setTaskLoading] = useState<string | null>(null);
   const [walletData, setWalletData] = useState<{ address: string; fullAddress: string; balance: number; chain: string; multiplier: number } | null>(null);
   const [allDone, setAllDone] = useState(() => {
@@ -134,6 +160,19 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   });
 
   const { openOAuth } = useOAuthPopup();
+
+  // Persist auth state to localStorage whenever it changes
+  useEffect(() => {
+    saveAuthState({
+      twitterVerified,
+      twitterId,
+      twitterUsername,
+      followersCount,
+      discordVerified,
+      discordUserId,
+      tasks,
+    });
+  }, [twitterVerified, twitterId, twitterUsername, followersCount, discordVerified, discordUserId, tasks]);
 
   // Save scores to DB
   const saveScoresToDB = useCallback(async (currentBoxes: BoxData[], mult?: number) => {
