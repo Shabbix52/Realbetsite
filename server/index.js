@@ -13,6 +13,7 @@ dotenv.config({ path: join(__dirname, '..', '.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
 
 // Allow Vercel preview deployments and production
 const allowedOrigins = [
@@ -147,7 +148,7 @@ app.get('/auth/twitter', (req, res) => {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.TWITTER_CLIENT_ID || '',
-    redirect_uri: `${CLIENT_URL}/auth/twitter/callback`,
+    redirect_uri: `${SERVER_URL}/auth/twitter/callback`,
     scope: 'tweet.read users.read follows.read offline.access',
     state,
     code_challenge: challenge,
@@ -186,7 +187,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
       body: new URLSearchParams({
         code: String(code),
         grant_type: 'authorization_code',
-        redirect_uri: `${CLIENT_URL}/auth/twitter/callback`,
+        redirect_uri: `${SERVER_URL}/auth/twitter/callback`,
         code_verifier: stored.verifier,
       }),
     });
@@ -247,7 +248,7 @@ app.get('/auth/discord', (req, res) => {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.DISCORD_CLIENT_ID || '',
-    redirect_uri: `${CLIENT_URL}/auth/discord/callback`,
+    redirect_uri: `${SERVER_URL}/auth/discord/callback`,
     scope: 'identify',
     state,
     prompt: 'consent',
@@ -280,7 +281,7 @@ app.get('/auth/discord/callback', async (req, res) => {
         client_secret: process.env.DISCORD_CLIENT_SECRET || '',
         grant_type: 'authorization_code',
         code: String(code),
-        redirect_uri: `${CLIENT_URL}/auth/discord/callback`,
+        redirect_uri: `${SERVER_URL}/auth/discord/callback`,
       }),
     });
 
