@@ -14,7 +14,23 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-app.use(cors({ origin: CLIENT_URL }));
+// Allow Vercel preview deployments and production
+const allowedOrigins = [
+  CLIENT_URL,
+  'http://localhost:5173',
+  /https:\/\/lovable-.*\.vercel\.app$/
+];
+
+app.use(cors({ 
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const isAllowed = allowedOrigins.some(allowed => 
+      typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
+    );
+    callback(null, isAllowed ? origin : false);
+  },
+  credentials: true 
+}));
 app.use(express.json());
 
 // ─────────────────────────────────────────────
