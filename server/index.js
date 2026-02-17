@@ -163,12 +163,12 @@ app.get('/auth/twitter/callback', async (req, res) => {
   const { code, state } = req.query;
 
   if (!code || !state) {
-    return res.status(400).send(resultPage(false, 'twitter', 'Missing code or state'));
+    return res.redirect(resultRedirectUrl(false, 'twitter', 'Missing code or state'));
   }
 
   const stored = oauthStore.get(state);
   if (!stored) {
-    return res.status(400).send(resultPage(false, 'twitter', 'Invalid or expired state'));
+    return res.redirect(resultRedirectUrl(false, 'twitter', 'Invalid or expired state'));
   }
   oauthStore.delete(state);
 
@@ -195,7 +195,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Twitter token error:', err);
-      return res.send(resultPage(false, 'twitter', 'Token exchange failed'));
+      return res.redirect(resultRedirectUrl(false, 'twitter', 'Token exchange failed'));
     }
 
     const tokenData = await tokenRes.json();
@@ -221,8 +221,8 @@ app.get('/auth/twitter/callback', async (req, res) => {
     await redis.setEx(`user:twitter:${user.id}`, 86400, JSON.stringify({ dbId, username: user.username, followersCount }));
     console.log(`Twitter user @${user.username} (${followersCount} followers) saved (db id: ${dbId})`);
 
-    res.send(
-      resultPage(true, 'twitter', null, {
+    res.redirect(
+      resultRedirectUrl(true, 'twitter', null, {
         id: user.id,
         username: user.username,
         name: user.name,
@@ -232,7 +232,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
     );
   } catch (err) {
     console.error('Twitter OAuth error:', err);
-    res.send(resultPage(false, 'twitter', 'OAuth flow failed'));
+    res.redirect(resultRedirectUrl(false, 'twitter', 'OAuth flow failed'));
   }
 });
 
@@ -262,12 +262,12 @@ app.get('/auth/discord/callback', async (req, res) => {
   const { code, state } = req.query;
 
   if (!code || !state) {
-    return res.status(400).send(resultPage(false, 'discord', 'Missing code or state'));
+    return res.redirect(resultRedirectUrl(false, 'discord', 'Missing code or state'));
   }
 
   const stored = oauthStore.get(state);
   if (!stored) {
-    return res.status(400).send(resultPage(false, 'discord', 'Invalid or expired state'));
+    return res.redirect(resultRedirectUrl(false, 'discord', 'Invalid or expired state'));
   }
   oauthStore.delete(state);
 
@@ -288,7 +288,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Discord token error:', err);
-      return res.send(resultPage(false, 'discord', 'Token exchange failed'));
+      return res.redirect(resultRedirectUrl(false, 'discord', 'Token exchange failed'));
     }
 
     const tokenData = await tokenRes.json();
@@ -315,8 +315,8 @@ app.get('/auth/discord/callback', async (req, res) => {
     await redis.setEx(`user:discord:${userData.id}`, 86400, JSON.stringify({ dbId, username: userData.username }));
     console.log(`Discord user ${userData.username} saved (db id: ${dbId})`);
 
-    res.send(
-      resultPage(true, 'discord', null, {
+    res.redirect(
+      resultRedirectUrl(true, 'discord', null, {
         id: userData.id,
         username: userData.username,
         globalName: userData.global_name,
@@ -325,7 +325,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     );
   } catch (err) {
     console.error('Discord OAuth error:', err);
-    res.send(resultPage(false, 'discord', 'OAuth flow failed'));
+    res.redirect(resultRedirectUrl(false, 'discord', 'OAuth flow failed'));
   }
 });
 
@@ -469,22 +469,10 @@ app.post('/auth/wallet', async (req, res) => {
 //  Result page — sends postMessage to opener & closes popup
 // ─────────────────────────────────────────────
 
-function resultPage(success, provider, error = null, user = null) {
-  const payload = JSON.stringify({ success, provider, error, user });
-  return `<!DOCTYPE html>
-<html>
-<head><title>Authenticating...</title></head>
-<body style="background:#0D0D0D;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-  <div style="text-align:center">
-    <p>${success ? '✅ Connected!' : '❌ Connection failed'}</p>
-    <p style="opacity:0.5;font-size:14px">This window will close automatically...</p>
-  </div>
-  <script>
-    window.opener && window.opener.postMessage(${payload}, '${CLIENT_URL}');
-    setTimeout(() => window.close(), 1500);
-  </script>
-</body>
-</html>`;
+function resultRedirectUrl(success, provider, error = null, user = null) {
+  const payload = { success, provider, error, user };
+  const encoded = encodeURIComponent(JSON.stringify(payload));
+  return `${CLIENT_URL}/oauth-callback.html?data=${encoded}`;
 }
 
 // ── Cleanup expired states every 5 minutes ──

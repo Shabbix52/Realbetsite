@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { API_URL, getApiUrl } from '../config';
+import { getApiUrl } from '../config';
 
 export interface OAuthUser {
   id: string;
@@ -28,10 +28,8 @@ export function useOAuthPopup() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Accept messages from our own origin or the API server (OAuth popup)
-      const apiOrigin = API_URL ? new URL(API_URL).origin : '';
-      const allowed = [window.location.origin, apiOrigin].filter(Boolean);
-      if (!allowed.includes(event.origin)) return;
+      // Accept messages from our own origin (oauth-callback.html is same-origin)
+      if (event.origin !== window.location.origin) return;
 
       const data = event.data as OAuthResult;
       if (data && data.provider && typeof data.success === 'boolean') {
