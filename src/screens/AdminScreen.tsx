@@ -78,6 +78,8 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('total_points');
   const [page, setPage] = useState(0);
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   const headers = { 'x-admin-key': adminKey };
 
@@ -146,6 +148,24 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
     const ok = await authenticate(keyInput);
     if (!ok) setError('Invalid admin key');
     else setError(null);
+  };
+
+  const handleResetDB = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch(getApiUrl('/admin/reset-db'), { method: 'POST', headers });
+      if (!res.ok) throw new Error();
+      setStats(null);
+      setUsers(null);
+      setResetConfirm(false);
+      setError(null);
+      // Refresh current tab
+      if (tab === 'overview') fetchStats();
+      else fetchUsers();
+    } catch {
+      setError('Failed to reset database');
+    }
+    setResetting(false);
   };
 
   const handleExport = async () => {
@@ -244,11 +264,44 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
             <button onClick={handleExport} className="px-3 sm:px-4 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold font-label tracking-wider hover:bg-green-500/30 transition-colors">
               EXPORT
             </button>
+            <button
+              onClick={() => setResetConfirm(true)}
+              className="px-3 sm:px-4 py-2 rounded-lg bg-red-500/20 text-red-400 text-xs font-bold font-label tracking-wider hover:bg-red-500/30 transition-colors"
+            >
+              RESET DB
+            </button>
             <button onClick={() => { setAuthenticated(false); setAdminKey(''); localStorage.removeItem('realbet_admin_key'); }} className="px-3 sm:px-4 py-2 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 transition-colors">
               LOGOUT
             </button>
           </div>
         </div>
+
+        {/* Reset DB Confirmation Modal */}
+        {resetConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
+            <div className="w-full max-w-sm glass-panel rounded-2xl p-6 space-y-4 border border-red-500/20">
+              <h3 className="font-display text-xl font-bold text-white">Reset Database?</h3>
+              <p className="text-sm text-rb-muted/60">
+                This will <span className="text-red-400 font-bold">permanently delete all users, scores, and wallets</span>. This cannot be undone.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setResetConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-rb-card border border-rb-border text-sm font-bold font-label tracking-wider text-rb-muted/60 hover:text-white transition-colors"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleResetDB}
+                  disabled={resetting}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold font-label tracking-wider transition-colors disabled:opacity-50"
+                >
+                  {resetting ? 'RESETTING...' : 'CONFIRM RESET'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6">

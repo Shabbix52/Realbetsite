@@ -692,6 +692,22 @@ function csvSafe(val) {
   return str;
 }
 
+// Admin: Reset database (truncate all tables)
+app.post('/admin/reset-db', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('TRUNCATE TABLE scores, wallets, users RESTART IDENTITY CASCADE');
+    // Clear Redis leaderboard cache
+    if (redis) {
+      try { await redis.del('leaderboard_cache'); } catch {}
+    }
+    console.log('[ADMIN] Database reset performed');
+    res.json({ success: true, message: 'All tables truncated' });
+  } catch (err) {
+    console.error('Reset DB error:', err.message);
+    res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
 // Admin: Export all data as CSV (uses header auth, not query param)
 app.get('/admin/export', requireAdmin, async (req, res) => {
   try {
