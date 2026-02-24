@@ -242,86 +242,36 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const handleTask = useCallback(async (task: 'follow' | 'discord') => {
     if (taskLoading) return;
 
-    // ── Twitter / X ──
+    // ── Twitter / X ── (skip OAuth for now, just advance)
     if (task === 'follow') {
-      if (!twitterVerified) {
-        // Step 1: Authenticate with X
-        setTaskLoading('follow');
-        openOAuth('twitter', (result) => {
-          if (result.success) {
-            setTwitterVerified(true);
-            if (result.user?.id) setTwitterId(result.user.id);
-            if (result.user?.followersCount !== undefined) setFollowersCount(result.user.followersCount);
-            if (result.user?.username) {
-              setTwitterUsername(result.user.username);
-              const pfp = result.user.avatar
-                ? result.user.avatar.replace('_normal', '_400x400')
-                : `https://api.dicebear.com/7.x/avataaars/svg?seed=${result.user.username}`;
-              onUserProfile(result.user.id || '', result.user.username, pfp);
-
-              // Load existing scores from DB
-              if (result.user.id) {
-                fetch(getApiUrl(`/auth/scores/${result.user.id}`))
-                  .then(r => r.json())
-                  .then(data => {
-                    if (data?.boxes) {
-                      const hasPoints = data.boxes.some((b: any) => b.points > 0);
-                      if (hasPoints) { setBoxes(data.boxes); saveBoxes(data.boxes); }
-                    }
-                    if (data?.followersCount) setFollowersCount(data.followersCount);
-                  })
-                  .catch(() => {});
-              }
-            }
-            // Mark task done immediately after successful OAuth
-            setTasks(p => {
-              const updated = { ...p, follow: true };
-              checkAllTasks(updated);
-              return updated;
-            });
-          }
-          setTaskLoading(null);
-        });
-      } else if (!tasks.follow) {
-        // Already verified — just mark done
+      setTaskLoading('follow');
+      setTimeout(() => {
+        setTwitterVerified(true);
         setTasks(p => {
           const updated = { ...p, follow: true };
           checkAllTasks(updated);
           return updated;
         });
-      }
+        setTaskLoading(null);
+      }, 600);
       return;
     }
 
-    // ── Discord ──
+    // ── Discord ── (skip OAuth for now, just advance)
     if (task === 'discord') {
-      if (!discordVerified) {
-        // Step 1: Authenticate with Discord
-        setTaskLoading('discord');
-        openOAuth('discord', (result) => {
-          if (result.success && result.user?.id) {
-            setDiscordVerified(true);
-            setDiscordUserId(result.user.id);
-            // Mark task done immediately after successful OAuth
-            setTasks(p => {
-              const updated = { ...p, discord: true };
-              checkAllTasks(updated);
-              return updated;
-            });
-          }
-          setTaskLoading(null);
-        });
-      } else if (!tasks.discord) {
-        // Already verified — just mark done
+      setTaskLoading('discord');
+      setTimeout(() => {
+        setDiscordVerified(true);
         setTasks(p => {
           const updated = { ...p, discord: true };
           checkAllTasks(updated);
           return updated;
         });
-      }
+        setTaskLoading(null);
+      }, 600);
       return;
     }
-  }, [taskLoading, twitterVerified, discordVerified, tasks, openOAuth, discordUserId, onUserProfile, checkAllTasks]);
+  }, [taskLoading, checkAllTasks]);
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
