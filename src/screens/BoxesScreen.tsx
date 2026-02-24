@@ -245,16 +245,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     // ── Twitter / X ──
     if (task === 'follow') {
       if (!twitterVerified) {
+        // Step 1: Authenticate with X
         setTaskLoading('follow');
         openOAuth('twitter', (result) => {
           if (result.success) {
             setTwitterVerified(true);
-            if (result.user?.id) {
-              setTwitterId(result.user.id);
-            }
-            if (result.user?.followersCount !== undefined) {
-              setFollowersCount(result.user.followersCount);
-            }
+            if (result.user?.id) setTwitterId(result.user.id);
+            if (result.user?.followersCount !== undefined) setFollowersCount(result.user.followersCount);
             if (result.user?.username) {
               setTwitterUsername(result.user.username);
               const pfp = result.user.avatar
@@ -267,47 +264,31 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 fetch(getApiUrl(`/auth/scores/${result.user.id}`))
                   .then(r => r.json())
                   .then(data => {
-                    if (data && data.boxes) {
+                    if (data?.boxes) {
                       const hasPoints = data.boxes.some((b: any) => b.points > 0);
-                      if (hasPoints) {
-                        setBoxes(data.boxes);
-                        saveBoxes(data.boxes);
-                      }
+                      if (hasPoints) { setBoxes(data.boxes); saveBoxes(data.boxes); }
                     }
-                    if (data && data.followersCount) {
-                      setFollowersCount(data.followersCount);
-                    }
+                    if (data?.followersCount) setFollowersCount(data.followersCount);
                   })
-                  .catch(() => { /* ignore */ });
+                  .catch(() => {});
               }
             }
-
-            // Auto-chain: open follow page immediately after OAuth
-            window.open('https://x.com/Realbet', '_blank');
-            setTimeout(() => {
-              setTasks(p => {
-                const updated = { ...p, follow: true };
-                checkAllTasks(updated);
-                return updated;
-              });
-              setTaskLoading(null);
-            }, 12000);
-          } else {
-            setTaskLoading(null);
+            // Mark task done immediately after successful OAuth
+            setTasks(p => {
+              const updated = { ...p, follow: true };
+              checkAllTasks(updated);
+              return updated;
+            });
           }
+          setTaskLoading(null);
         });
       } else if (!tasks.follow) {
-        // Already verified on a prior session — just open follow
-        window.open('https://x.com/Realbet', '_blank');
-        setTaskLoading('follow');
-        setTimeout(() => {
-          setTasks(p => {
-            const updated = { ...p, follow: true };
-            checkAllTasks(updated);
-            return updated;
-          });
-          setTaskLoading(null);
-        }, 12000);
+        // Already verified — just mark done
+        setTasks(p => {
+          const updated = { ...p, follow: true };
+          checkAllTasks(updated);
+          return updated;
+        });
       }
       return;
     }
@@ -315,77 +296,28 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     // ── Discord ──
     if (task === 'discord') {
       if (!discordVerified) {
+        // Step 1: Authenticate with Discord
         setTaskLoading('discord');
         openOAuth('discord', (result) => {
           if (result.success && result.user?.id) {
             setDiscordVerified(true);
             setDiscordUserId(result.user.id);
-
-            // Auto-chain: open Discord invite immediately after OAuth
-            window.open('https://discord.gg/realbetio', '_blank');
-            const userId = result.user.id;
-            let attempts = 0;
-            const maxAttempts = 15;
-
-            const checkMembership = async () => {
-              attempts++;
-              try {
-                const res = await fetch(getApiUrl(`/auth/discord/check-member/${userId}`));
-                const data = await res.json();
-                if (data.member) {
-                  setTasks(p => {
-                    const updated = { ...p, discord: true };
-                    checkAllTasks(updated);
-                    return updated;
-                  });
-                  setTaskLoading(null);
-                  return;
-                }
-              } catch { /* retry */ }
-
-              if (attempts < maxAttempts) {
-                setTimeout(checkMembership, 2000);
-              } else {
-                setTaskLoading(null);
-              }
-            };
-
-            setTimeout(checkMembership, 1000);
-          } else {
-            setTaskLoading(null);
+            // Mark task done immediately after successful OAuth
+            setTasks(p => {
+              const updated = { ...p, discord: true };
+              checkAllTasks(updated);
+              return updated;
+            });
           }
+          setTaskLoading(null);
         });
       } else if (!tasks.discord) {
-        // Already verified on a prior session — just open invite
-        window.open('https://discord.gg/realbetio', '_blank');
-        setTaskLoading('discord');
-        let attempts = 0;
-        const maxAttempts = 15;
-
-        const checkMembership = async () => {
-          attempts++;
-          try {
-            const res = await fetch(getApiUrl(`/auth/discord/check-member/${discordUserId}`));
-            const data = await res.json();
-            if (data.member) {
-              setTasks(p => {
-                const updated = { ...p, discord: true };
-                checkAllTasks(updated);
-                return updated;
-              });
-              setTaskLoading(null);
-              return;
-            }
-          } catch { /* retry */ }
-
-          if (attempts < maxAttempts) {
-            setTimeout(checkMembership, 2000);
-          } else {
-            setTaskLoading(null);
-          }
-        };
-
-        setTimeout(checkMembership, 1000);
+        // Already verified — just mark done
+        setTasks(p => {
+          const updated = { ...p, discord: true };
+          checkAllTasks(updated);
+          return updated;
+        });
       }
       return;
     }
