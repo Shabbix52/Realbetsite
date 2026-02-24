@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import ParticleBackground from './components/ParticleBackground';
+import { AnimatePresence, motion } from 'framer-motion';
 import GlowEffects from './components/GlowEffects';
+import BloodStainOverlay from './components/BloodStainOverlay';
 import HeroScreen from './screens/HeroScreen';
 import BoxesScreen from './screens/BoxesScreen';
 import VIPScreen from './screens/VIPScreen';
@@ -78,22 +78,9 @@ function App() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-bg overflow-hidden">
-      <ParticleBackground />
+    <div className="relative h-screen overflow-hidden grain-overlay">
       <GlowEffects />
-
-      {/* Watermark text */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none">
-        <span className="absolute top-[15%] left-[-5%] text-[8rem] font-display font-bold text-white/[0.015] rotate-[-15deg] whitespace-nowrap">
-          VOLUME WINS
-        </span>
-        <span className="absolute top-[45%] right-[-10%] text-[6rem] font-display font-bold text-white/[0.015] rotate-[10deg] whitespace-nowrap">
-          THE HOUSE KNOWS
-        </span>
-        <span className="absolute bottom-[10%] left-[5%] text-[10rem] font-display font-bold text-white/[0.015] rotate-[-8deg] whitespace-nowrap">
-          STAY SHARP
-        </span>
-      </div>
+      <BloodStainOverlay />
 
       <AnimatePresence mode="wait">
         {screen === 'hero' && (

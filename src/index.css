@@ -13,30 +13,36 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: #07070B;
-  color: #ffffff;
+  font-family: 'Space Mono', monospace;
+  background-color: #050508;
+  color: #F2F2F2;
   overflow-x: hidden;
   min-height: 100vh;
 }
 
-/* All headings use Oswald */
+/* All headings use Bebas Neue */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Bebas Neue', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-/* Noise texture overlay */
-body::before {
+/* Film grain overlay */
+.grain-overlay::after {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.015;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  width: 200%;
+  height: 200%;
+  opacity: 0.7;
   z-index: 100;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  animation: grain 8s steps(10) infinite;
+  mix-blend-mode: overlay;
 }
 
 /* Custom scrollbar */
@@ -44,10 +50,10 @@ body::before {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #07070B;
+  background: #050508;
 }
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #333840;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -56,7 +62,7 @@ body::before {
 
 /* Selection */
 ::selection {
-  background: rgba(220, 38, 38, 0.3);
+  background: rgba(191, 18, 32, 0.3);
   color: #fff;
 }
 
@@ -72,40 +78,79 @@ button {
 
 /* Glass panel effect */
 .glass-panel {
-  background: rgba(18, 19, 26, 0.6);
+  background: rgba(10, 11, 15, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(42, 44, 58, 0.5);
+  border: 1px solid rgba(51, 56, 64, 0.5);
 }
 
-/* CSS Particle animation */
-@keyframes particle-drift {
-  0% {
-    transform: translateY(100vh) translateX(0);
-    opacity: 0;
-  }
-  10% {
-    opacity: var(--particle-opacity, 0.04);
-  }
-  90% {
-    opacity: var(--particle-opacity, 0.04);
-  }
-  100% {
-    transform: translateY(-20px) translateX(var(--drift-x, 20px));
-    opacity: 0;
-  }
+/* Fight divider */
+.fight-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+.fight-divider::before,
+.fight-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #BF1220 50%, transparent);
+  opacity: 0.4;
+}
+.fight-divider .diamond {
+  width: 8px;
+  height: 8px;
+  background: #BF1220;
+  transform: rotate(45deg);
+  opacity: 0.6;
 }
 
-.animate-particle {
-  animation: particle-drift var(--duration, 30s) linear infinite;
+/* CTA button fight style */
+.btn-fight {
+  background: linear-gradient(180deg, #BF1220 0%, #4D0000 100%);
+  font-family: 'Bebas Neue', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 0.875rem 2.5rem;
+  border-radius: 4px;
+  border: none;
+  color: #F2F2F2;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 25px hsla(355, 83%, 41%, 0.4);
+  transition: box-shadow 0.3s ease, transform 0.15s ease;
+}
+.btn-fight:hover {
+  box-shadow: 0 4px 35px hsla(355, 83%, 41%, 0.6);
+  transform: translateY(-1px);
+}
+.btn-fight:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 15px hsla(355, 83%, 41%, 0.3);
 }
 
-.red-particle {
-  position: fixed;
-  border-radius: 50%;
-  background: #FF3B30;
+/* Pulse glow animation for CTA */
+.pulse-glow {
+  animation: pulseGlow 7s ease-in-out infinite;
+}
+
+/* Section hero atmosphere */
+.section-hero-atmosphere {
+  position: relative;
+}
+.section-hero-atmosphere::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 70% 50% at 40% 90%, hsl(0 100% 15% / 0.25) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 60% 100%, hsl(355 83% 41% / 0.1) 0%, transparent 50%);
 }
 
 @keyframes sheen-sweep {
@@ -114,4 +159,9 @@ button {
 }
 .animate-sheen {
   animation: sheen-sweep 8s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 4px 25px hsla(355, 83%, 41%, 0.4); }
+  50% { box-shadow: 0 4px 40px hsla(355, 83%, 41%, 0.5); }
 }

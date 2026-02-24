@@ -5,10 +5,10 @@ const Stats = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ delay: 0.8, duration: 0.6 }}
-      className="mt-14 flex flex-col items-center"
+      transition={{ delay: 1.2, duration: 0.6 }}
+      className="mt-12 flex flex-col items-start"
     >
-      <p className="text-white/[0.08] text-[11px] italic tracking-wider">
+      <p className="font-mono text-[11px] text-rb-muted/30 italic tracking-wider">
         The House remembers.
       </p>
     </motion.div>

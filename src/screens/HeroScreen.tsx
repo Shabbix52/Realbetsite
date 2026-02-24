@@ -1,10 +1,5 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import Logo from '../components/Logo';
-import HeroTitle from '../components/HeroTitle';
-import Steps from '../components/Steps';
-import Subtitle from '../components/Subtitle';
-import Stats from '../components/Stats';
 
 interface HeroScreenProps {
   onGenerate: () => void;
@@ -21,83 +16,123 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
   };
 
   return (
-    <motion.main
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, y: -30 }}
-      transition={{ duration: 0.5 }}
-      className="relative z-10 flex flex-col items-center justify-center h-screen px-6 overflow-hidden"
-    >
-      <div className="max-w-3xl w-full flex flex-col items-center">
-        <Steps />
+    <section className="relative h-screen flex items-center justify-start px-6 md:px-16 lg:px-24 section-hero-atmosphere overflow-hidden">
 
-        {/* Season badge */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1, duration: 0.5 }}
-          className="mb-10"
-        >
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel">
-            {/* Crown icon */}
-            <svg className="w-3.5 h-3.5 text-brand-gold/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
-              <path d="M5 21h14" />
-            </svg>
-            <span className="font-label text-[10px] tracking-[0.2em] text-rb-muted/70 uppercase">
-              Season 1 • Exclusive Access
-            </span>
-          </span>
-        </motion.div>
-
-        <Logo />
-        <HeroTitle />
-        <Subtitle />
-
-        {/* CTA Button */}
-        <motion.button
-          whileHover={!loading ? { scale: 1.02 } : {}}
-          whileTap={!loading ? { scale: 0.97 } : {}}
-          onClick={handleClick}
-          disabled={loading}
-          className={`group relative w-full max-w-sm mx-auto py-4 px-8 rounded-xl font-display font-bold tracking-[0.15em] text-white text-sm uppercase border border-white/[0.08] overflow-hidden active:scale-[0.97] transition-transform ${loading ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      {/* Hero Image Container */}
+      <motion.div
+        initial={{ opacity: 0, x: 60 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 1, delay: 0.4 }}
+        className="absolute right-[-8%] md:right-[-4%] lg:right-[0%] bottom-0 z-[8] pointer-events-none hidden md:block"
+        style={{ width: 'clamp(500px, 55vw, 950px)' }}
+      >
+        {/* Color overlay */}
+        <div
+          className="absolute inset-0 z-[1]"
           style={{
-            background: 'linear-gradient(180deg, #C02020 0%, #8B1414 50%, #5C0E0E 100%)',
-            boxShadow: '0 1px 0 0 rgba(255,255,255,0.08) inset, 0 -2px 6px 0 rgba(0,0,0,0.4) inset, 0 8px 40px -8px rgba(255,59,48,0.3), 0 2px 12px rgba(0,0,0,0.6)',
+            background: 'linear-gradient(to top, rgba(200, 0, 0, 0.85) 0%, rgba(170, 0, 0, 0.55) 40%, transparent 70%), linear-gradient(to left, rgba(170, 0, 0, 0.6) 0%, transparent 45%)',
+          }}
+        />
+
+        {/* Shadow overlay */}
+        <div
+          className="absolute inset-0 z-[0]"
+          style={{ boxShadow: '0 0 120px 60px rgba(5, 5, 8, 0.8)' }}
+        />
+
+        {/* Hero image */}
+        <img
+          src="/conor-hero.png"
+          alt=""
+          className="relative z-[2] w-full h-auto object-contain object-bottom"
+          style={{
+            filter: 'saturate(0.85) contrast(1.15) brightness(0.9)',
+            maskImage: 'linear-gradient(to top, transparent 0%, black 8%), linear-gradient(to left, transparent 0%, black 5%), linear-gradient(to right, transparent 0%, black 15%)',
+            WebkitMaskImage: 'linear-gradient(to top, transparent 0%, black 8%), linear-gradient(to left, transparent 0%, black 5%)',
+            WebkitMaskComposite: 'destination-in',
+            maskComposite: 'intersect' as any,
+          }}
+        />
+
+        {/* Noise overlay on image */}
+        <div
+          className="absolute inset-0 z-[3] pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            mixBlendMode: 'overlay',
+            opacity: 0.6,
+          }}
+        />
+      </motion.div>
+
+      {/* Vignette around hero image */}
+      <div
+        className="absolute inset-0 z-[7] pointer-events-none hidden md:block"
+        style={{
+          background: 'radial-gradient(ellipse 50% 70% at 70% 50%, transparent 20%, rgba(5, 5, 8, 0.4) 70%, rgba(5, 5, 8, 0.7) 100%)',
+        }}
+      />
+
+      {/* Light line */}
+      <div className="absolute top-20 right-[15%] w-px h-[60%] bg-gradient-to-b from-transparent via-[hsla(355,83%,41%,0.3)] to-transparent rotate-12 hidden md:block z-[9]" />
+
+      {/* Text container */}
+      <div className="relative z-20 max-w-3xl mt-[-8vh] md:ml-8">
+
+        {/* Badge */}
+        <motion.p
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+          className="font-mono text-xs tracking-[0.3em] text-rb-muted mb-4 uppercase"
+        >
+          RealBet · Season 1
+        </motion.p>
+
+        {/* Title */}
+        <motion.h1
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="font-headline text-[clamp(4rem,12vw,10rem)] leading-[0.85] tracking-wider text-[#F2F2F2] mb-6"
+          style={{
+            textShadow: '0 0 60px hsl(355 83% 41% / 0.3), 0 4px 12px hsl(0 0% 0% / 0.8)',
           }}
         >
-          {/* Top highlight line */}
-          <span className="absolute top-0 left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          THE HOUSE<br />
+          <span className="text-brand-red">IS OPEN</span>
+        </motion.h1>
 
-          {/* Shimmer sweep on hover */}
-          {!loading && (
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent -skew-x-12 translate-x-[-150%] group-hover:translate-x-[250%] transition-transform duration-1000 ease-in-out" />
-          )}
+        {/* Subtitle */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          className="font-mono text-sm text-rb-muted max-w-md mb-10 leading-relaxed"
+        >
+          Claim your ID. Choose your box. Walk the path to gold.<br />
+          No second chances.
+        </motion.p>
 
-          <span className="relative z-10 flex items-center justify-center gap-3">
-            {loading ? (
-              <>
-                <svg className="animate-spin h-5 w-5 text-white/80" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                CONNECTING...
-              </>
-            ) : (
-              <>
-                Enter The House
-                {/* ChevronRight arrow */}
-                <svg className="w-4 h-4 opacity-60 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </>
-            )}
-          </span>
+        {/* CTA */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.8 }}
+          onClick={handleClick}
+          disabled={loading}
+          className={`btn-fight pulse-glow text-lg ${loading ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+          {loading ? 'Connecting...' : 'Enter the Arena →'}
         </motion.button>
-
-        <Stats />
       </div>
-    </motion.main>
+
+      {/* Right side glow */}
+      <div className="absolute right-0 top-0 bottom-0 w-1/2 hidden md:block z-[1]">
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to left, rgba(190, 0, 0, 0.75), transparent)' }} />
+        <div className="absolute bottom-[15%] right-[15%] w-80 h-80 rounded-full blur-[120px]" style={{ background: 'rgba(210, 10, 10, 0.4)' }} />
+      </div>
+    </section>
   );
 };
 
