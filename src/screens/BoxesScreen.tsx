@@ -416,27 +416,27 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -30 }}
             transition={{ duration: 0.5 }}
-            className="h-screen flex flex-col items-center justify-center relative px-6 z-10"
+            className="min-h-screen flex flex-col items-center justify-center relative px-4 sm:px-6 z-10 overflow-y-auto py-16 sm:py-0"
           >
             <motion.div className="w-full max-w-3xl mx-auto">
               {/* Label */}
-              <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 mb-3">
+              <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 mb-2 sm:mb-3">
                 // LOOT DROP
               </p>
 
               {/* Heading */}
-              <h2 className="font-display text-4xl md:text-6xl font-bold mb-3 tracking-tight uppercase">
+              <h2 className="font-display text-3xl sm:text-4xl md:text-6xl font-bold mb-2 sm:mb-3 tracking-tight uppercase">
                 Mystery{' '}
                 <span className="text-brand-red">Boxes</span>
               </h2>
 
               {/* Description */}
-              <p className="text-rb-muted/60 text-sm mb-10 max-w-md">
+              <p className="text-rb-muted/60 text-sm mb-6 sm:mb-10 max-w-md">
                 Each box reveals points. Points convert to Season 1 credit.
               </p>
 
               {/* Boxes Grid — only bronze & silver */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-10">
                 {boxes.slice(0, 2).map((box, i) => (
                   <motion.div
                     key={box.type}
@@ -446,7 +446,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     whileHover={box.state === 'ready' ? { y: -8, scale: 1.02 } : {}}
                     whileTap={box.state === 'ready' ? { scale: 0.97 } : {}}
                     onClick={() => box.state === 'ready' ? openBox(i) : undefined}
-                    className={`relative glass-panel rounded-2xl p-8 text-center min-h-[240px] flex flex-col items-center justify-center transition-all duration-500 ${
+                    className={`relative glass-panel rounded-2xl p-5 sm:p-8 text-center min-h-[180px] sm:min-h-[240px] flex flex-col items-center justify-center transition-all duration-500 ${
                       box.state === 'ready'
                         ? 'cursor-pointer hover:border-white/20'
                         : box.state === 'locked'
@@ -471,21 +471,21 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     )}
 
                     {/* Icon */}
-                    <div className="mb-4 relative z-[1]">
+                    <div className="mb-3 sm:mb-4 relative z-[1]">
                       {box.state === 'locked' ? (
-                        <LockIcon className="w-12 h-12 text-rb-muted/30" />
+                        <LockIcon className="w-10 h-10 sm:w-12 sm:h-12 text-rb-muted/30" />
                       ) : box.state === 'opening' ? (
-                        <PackageIcon className="w-12 h-12 text-white animate-bounce" />
+                        <PackageIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white animate-bounce" />
                       ) : box.state === 'revealed' ? (
                         <motion.div
                           initial={{ scale: 0.5 }}
                           animate={{ scale: 1 }}
                           transition={{ type: 'spring', damping: 12 }}
                         >
-                          <PackageIcon className="w-10 h-10 text-white/50" />
+                          <PackageIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white/50" />
                         </motion.div>
                       ) : (
-                        <PackageIcon className="w-12 h-12 text-white/70" />
+                        <PackageIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white/70" />
                       )}
                     </div>
 
@@ -566,27 +566,27 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -30 }}
             transition={{ duration: 0.5 }}
-            className="h-screen flex flex-col items-center justify-center relative px-6 z-10"
+            className="min-h-screen flex flex-col items-center justify-center relative px-4 sm:px-6 z-10 overflow-y-auto py-16 sm:py-0"
           >
             <motion.div className="w-full max-w-lg mx-auto">
               {/* Label */}
-              <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 mb-3">
+              <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 mb-2 sm:mb-3">
                 // THE FINAL BOX
               </p>
 
               {/* Heading */}
-              <h2 className="font-display text-4xl md:text-5xl font-bold mb-3 tracking-tight uppercase">
+              <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-2 sm:mb-3 tracking-tight uppercase">
                 Unlock{' '}
                 <span className="text-brand-gold">Gold Box</span>
               </h2>
 
               {/* Description */}
-              <p className="text-rb-muted/60 text-sm mb-10">
+              <p className="text-rb-muted/60 text-sm mb-6 sm:mb-10">
                 Complete these steps to unlock your biggest reward.
               </p>
 
               {/* Progress bar */}
-              <div className="mb-8">
+              <div className="mb-5 sm:mb-8">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-label text-[10px] tracking-wider text-rb-muted/50">Gold Box Unlock</span>
                   <span className="font-label text-[10px] tracking-wider text-rb-muted/50">{completedTasks}/2 completed</span>
@@ -706,14 +706,14 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="h-screen flex flex-col items-center justify-center relative px-6 z-10"
+            className="min-h-screen flex flex-col items-center justify-center relative px-4 sm:px-6 z-10 overflow-y-auto py-16 sm:py-0"
           >
             <motion.div className="max-w-lg mx-auto text-center">
               {/* Badge */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mb-3"
+                className="mb-2 sm:mb-3"
               >
                 <span className="inline-flex items-center gap-2 px-4 py-2 glass-panel rounded-full text-brand-gold/70 text-xs font-bold font-label tracking-[0.2em]">
                   The Final Box
@@ -721,17 +721,17 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </motion.div>
 
               {/* Heading */}
-              <h2 className="font-display text-5xl md:text-7xl font-bold mb-4 tracking-tight uppercase">
+              <h2 className="font-display text-4xl sm:text-5xl md:text-7xl font-bold mb-3 sm:mb-4 tracking-tight uppercase">
                 The{' '}
                 <span className="text-brand-gold">Gold Box</span>
               </h2>
 
               {/* Description */}
-              <p className="text-rb-muted/60 text-sm mb-12">
+              <p className="text-rb-muted/60 text-sm mb-8 sm:mb-12">
                 Your biggest reward awaits. The House saved the best for last.
               </p>
 
-              {/* Big gold box — fixed size */}
+              {/* Big gold box — responsive size */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -739,7 +739,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 whileHover={{ y: -10, scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => openBox(2)}
-                className="relative w-56 h-56 md:w-72 md:h-72 mx-auto rounded-2xl cursor-pointer glass-panel overflow-hidden"
+                className="relative w-44 h-44 sm:w-56 sm:h-56 md:w-72 md:h-72 mx-auto rounded-2xl cursor-pointer glass-panel overflow-hidden"
                 style={{
                   boxShadow: '0 0 60px rgba(246,196,74,0.1), 0 30px 60px rgba(0,0,0,0.4)',
                 }}
@@ -761,9 +761,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                   />
                 </div>
 
-                {/* Centered content */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <PackageIcon className="w-16 h-16 text-brand-gold/80 mb-4" />
+                  <PackageIcon className="w-12 h-12 sm:w-16 sm:h-16 text-brand-gold/80 mb-3 sm:mb-4" />
                   <p className="font-label text-[10px] text-brand-gold/50 tracking-widest uppercase animate-pulse">
                     Tap to open
                   </p>
@@ -780,7 +779,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="h-screen flex flex-col items-center justify-center relative px-6 z-10"
+            className="min-h-screen flex flex-col items-center justify-center relative px-4 sm:px-6 z-10 overflow-y-auto py-16 sm:py-0"
           >
             <motion.div className="max-w-lg mx-auto text-center">
               {/* Sparkle icon */}
@@ -788,9 +787,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 100, damping: 12 }}
-                className="mb-6"
+                className="mb-4 sm:mb-6"
               >
-                <svg className="w-14 h-14 text-brand-gold mx-auto" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="w-10 h-10 sm:w-14 sm:h-14 text-brand-gold mx-auto" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2l2.09 6.26L20.18 10l-4.64 3.18L17.09 20 12 16.27 6.91 20l1.55-6.82L3.82 10l6.09-1.74L12 2z" />
                   <circle cx="19" cy="5" r="1.5" fill="currentColor" opacity="0.6" />
                 </svg>
@@ -801,9 +800,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 100, damping: 12, delay: 0.1 }}
-                className="mb-6"
+                className="mb-4 sm:mb-6"
               >
-                <p className="text-6xl md:text-7xl font-bold font-label text-white mb-1">
+                <p className="text-5xl sm:text-6xl md:text-7xl font-bold font-label text-white mb-1">
                   +{boxes[2].points.toLocaleString()}
                 </p>
                 <p className="text-sm text-rb-muted/50 font-label">points</p>
@@ -826,7 +825,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-rb-muted/50 text-sm font-label mb-8"
+                className="text-rb-muted/50 text-sm font-label mb-5 sm:mb-8"
               >
                 Your status is locked for Season 1.
               </motion.p>
@@ -836,12 +835,12 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="glass-panel rounded-2xl p-6 max-w-xs mx-auto mb-8"
+                className="glass-panel rounded-2xl p-5 sm:p-6 max-w-xs mx-auto mb-6 sm:mb-8"
               >
                 <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-2">
                   Total Allocation
                 </p>
-                <p className="text-4xl font-bold font-label tracking-tight text-white">
+                <p className="text-3xl sm:text-4xl font-bold font-label tracking-tight text-white">
                   {displayTotal.toLocaleString()} <span className="text-rb-muted/40 text-base">pts</span>
                 </p>
               </motion.div>
@@ -857,7 +856,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={handleContinue}
-                    className="group w-full max-w-sm mx-auto py-4 px-8 rounded-xl font-display font-bold tracking-[0.15em] text-white text-sm uppercase border border-white/[0.08] overflow-hidden cursor-pointer transition-transform"
+                    className="group w-full max-w-sm mx-auto py-3.5 sm:py-4 px-6 sm:px-8 rounded-xl font-display font-bold tracking-[0.15em] text-white text-xs sm:text-sm uppercase border border-white/[0.08] overflow-hidden cursor-pointer transition-transform"
                     style={{
                       background: 'linear-gradient(180deg, #C02020 0%, #8B1414 50%, #5C0E0E 100%)',
                       boxShadow: '0 1px 0 0 rgba(255,255,255,0.08) inset, 0 -2px 6px 0 rgba(0,0,0,0.4) inset, 0 8px 40px -8px rgba(255,59,48,0.3), 0 2px 12px rgba(0,0,0,0.6)',

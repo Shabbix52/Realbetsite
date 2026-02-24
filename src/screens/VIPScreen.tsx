@@ -55,7 +55,7 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={handleMouseLeave}
-        className="relative w-full aspect-[16/9] rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
+        className="relative w-full aspect-[3/2] sm:aspect-[16/9] rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
         style={{
           transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
           transformStyle: 'preserve-3d',
@@ -174,19 +174,19 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
             </p>
           </div>
 
-          {/* Bottom-center: Diamond */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-brand-gold/50 text-lg">◆</div>
+          {/* Bottom-center: Diamond — hidden on small mobiles to prevent overlap */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-brand-gold/50 text-lg hidden sm:block">◆</div>
 
           {/* Bottom-right: Tagline */}
-          <p className="absolute bottom-3 right-5 text-[8px] text-rb-muted/20 italic font-label tracking-wider">
+          <p className="absolute bottom-2 sm:bottom-3 right-3 sm:right-5 text-[7px] sm:text-[8px] text-rb-muted/20 italic font-label tracking-wider">
             The House remembers.
           </p>
         </div>
       </div>
 
-      {/* Reflection */}
+      {/* Reflection — hidden on mobile to save space */}
       <div
-        className="w-full aspect-[16/9] rounded-2xl mt-1 opacity-10 blur-sm pointer-events-none"
+        className="hidden sm:block w-full aspect-[16/9] rounded-2xl mt-1 opacity-10 blur-sm pointer-events-none"
         style={{
           transform: 'scaleY(-1)',
           maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 50%)',
@@ -260,14 +260,14 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="w-full max-w-4xl mx-auto py-8"
+        className="w-full max-w-4xl mx-auto py-4 sm:py-8 pb-12"
       >
         {/* ── Big Allocation Headline (optics layer) ── */}
-        <motion.div variants={itemVariants} className="text-center mb-8">
-          <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase mb-3">
+        <motion.div variants={itemVariants} className="text-center mb-5 sm:mb-8">
+          <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase mb-2 sm:mb-3">
             Your Season 1 Rewards
           </p>
-          <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight uppercase mb-2">
+          <h2 className="font-display text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight uppercase mb-1 sm:mb-2">
             Season 1{' '}
             <span className="text-brand-red">Allocation</span>
           </h2>
@@ -275,7 +275,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3, type: 'spring', stiffness: 100 }}
-            className="text-5xl md:text-7xl font-bold font-label text-white mt-2"
+            className="text-4xl sm:text-5xl md:text-7xl font-bold font-label text-white mt-1 sm:mt-2"
             style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}
           >
             ${allocationDollars.toLocaleString()}
@@ -284,21 +284,21 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="text-brand-gold text-lg md:text-xl font-bold font-label mt-2"
+            className="text-brand-gold text-base sm:text-lg md:text-xl font-bold font-label mt-1 sm:mt-2"
           >
             {displayPoints.toLocaleString()} Power Points
           </motion.p>
         </motion.div>
 
         {/* ── Two-column layout ── */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+        <div className="flex flex-col lg:flex-row gap-5 sm:gap-8 items-start">
           {/* Left Column: VIP Card */}
           <motion.div variants={itemVariants} className="flex-1 w-full">
             <VIPCard userData={userData} displayPoints={displayPoints} />
           </motion.div>
 
           {/* Right Column: Info Panel */}
-          <motion.div variants={itemVariants} className="flex-1 w-full max-w-sm mx-auto lg:mx-0 space-y-6">
+          <motion.div variants={itemVariants} className="flex-1 w-full max-w-sm mx-auto lg:mx-0 space-y-4 sm:space-y-6">
             {/* Power Score + Allocation Panel */}
             <div className="glass-panel rounded-2xl p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4">
@@ -417,7 +417,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               <button
                 onClick={handleShare}
                 disabled={shared}
-                className={`w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold text-sm tracking-wider transition-all duration-300 ${
+                className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 ${
                   shared
                     ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                     : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
@@ -426,13 +426,13 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
-                {shared ? 'SHARED ✓' : 'SHARE ON X TO REVEAL REWARDS'}
+                {shared ? 'SHARED ✓' : <><span className="hidden sm:inline">SHARE ON X TO REVEAL REWARDS</span><span className="sm:hidden">SHARE ON X TO REVEAL</span></>}
               </button>
 
               <button
                 onClick={handleClaim}
                 disabled={!shared}
-                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-sm tracking-wider transition-all duration-300 ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 ${
                   shared
                     ? 'border border-brand-red/40 text-[#F0F1F7] shadow-[0_0_50px_rgba(255,59,48,0.15)] hover:shadow-[0_0_80px_rgba(255,59,48,0.3)]'
                     : 'glass-panel text-rb-muted/30 cursor-not-allowed'
@@ -442,7 +442,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                 } : undefined}
               >
                 {!shared && <LockIcon className="w-4 h-4" />}
-                {shared ? `CLAIM $${split.totalCash.toLocaleString()} + ${split.realPoints.toLocaleString()} REAL PTS` : 'CLAIM REWARDS'}
+                {shared ? <><span className="hidden sm:inline">CLAIM ${split.totalCash.toLocaleString()} + {split.realPoints.toLocaleString()} REAL PTS</span><span className="sm:hidden">CLAIM ${split.totalCash.toLocaleString()} REWARDS</span></> : 'CLAIM REWARDS'}
               </button>
 
               {!shared && (
