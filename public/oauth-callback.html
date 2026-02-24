@@ -13,8 +13,13 @@
       if (raw) {
         var data = JSON.parse(decodeURIComponent(raw));
         document.getElementById('msg').textContent = data.success ? '\u2705 Connected!' : '\u274C Connection failed';
+
+        // Write to localStorage as a reliable cross-origin fallback
+        try { localStorage.setItem('oauth_result', JSON.stringify(data)); } catch(e) {}
+
+        // Try postMessage to opener (works when same-origin)
         if (window.opener) {
-          window.opener.postMessage(data, window.location.origin);
+          try { window.opener.postMessage(data, '*'); } catch(e) {}
         }
       } else {
         document.getElementById('msg').textContent = '\u274C No data received';
@@ -22,7 +27,7 @@
     } catch(e) {
       document.getElementById('msg').textContent = '\u274C Error processing callback';
     }
-    setTimeout(function() { window.close(); }, 1500);
+    setTimeout(function() { window.close(); }, 1800);
   </script>
 </body>
 </html>
