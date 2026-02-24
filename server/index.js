@@ -6,6 +6,8 @@ import cors from 'cors';
 import crypto from 'crypto';
 import pg from 'pg';
 import { createClient } from 'redis';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '..', '.env') });
@@ -22,6 +24,7 @@ const allowedOrigins = [
   /https:\/\/lovable-.*\.vercel\.app$/
 ];
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ 
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
@@ -33,6 +36,16 @@ app.use(cors({
   credentials: true 
 }));
 app.use(express.json());
+
+// Rate limiting
+const generalLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+const adminLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
+app.use('/auth/leaderboard', generalLimiter);
+app.use('/auth/scores', generalLimiter);
+app.use('/auth/twitter', authLimiter);
+app.use('/auth/discord', authLimiter);
+app.use('/admin', adminLimiter);
 
 // ─────────────────────────────────────────────
 //  DATABASE SETUP
@@ -366,9 +379,36 @@ app.get('/auth/discord/check-member/:userId', async (req, res) => {
 //  SCORES — Save & load box results
 // ─────────────────────────────────────────────
 
+// Valid point ranges for server-side validation
+const VALID_RANGES = { bronze: [100, 500], silver: [500, 1100], gold: [0, 70000] };
+const MAX_TOTAL_POINTS = 71600; // 500 + 1100 + 70000
+
+function validatePoints(type, pts) {
+  const range = VALID_RANGES[type];
+  if (!range) return false;
+  return Number.isInteger(pts) && pts >= range[0] && pts <= range[1];
+}
+
 app.post('/auth/scores', async (req, res) => {
   const { twitterId, username, followersCount, boxes, walletMultiplier, totalPoints } = req.body;
   if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
+
+  // Server-side score validation
+  if (totalPoints && (typeof totalPoints !== 'number' || totalPoints > MAX_TOTAL_POINTS || totalPoints < 0)) {
+    return res.status(400).json({ error: 'Invalid total points' });
+  }
+  if (boxes && Array.isArray(boxes)) {
+    for (const box of boxes) {
+      if (box.points > 0 && !validatePoints(box.type, box.points)) {
+        return res.status(400).json({ error: `Invalid ${box.type} points: ${box.points}` });
+      }
+    }
+    // Verify total matches sum
+    const computedTotal = boxes.reduce((s, b) => s + (b.points || 0), 0);
+    if (totalPoints && Math.abs(computedTotal - totalPoints) > 1) {
+      return res.status(400).json({ error: 'Total doesn\'t match box sum' });
+    }
+  }
 
   try {
     const bronze = boxes?.find(b => b.type === 'bronze') || {};
@@ -640,7 +680,18 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
   }
 });
 
-// Admin: Export all data as CSV
+// Sanitize CSV cell to prevent formula injection
+function csvSafe(val) {
+  if (val == null) return '';
+  const str = String(val);
+  // Prefix formula-triggering characters with a single quote
+  if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
+  // Wrap in quotes if contains comma, quote, or newline
+  if (/[,"\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+// Admin: Export all data as CSV (uses header auth, not query param)
 app.get('/admin/export', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
@@ -654,7 +705,7 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
 
     const header = 'twitter_id,username,followers,bronze_pts,silver_pts,gold_pts,total_pts,real_pts,freeplay_$,deposit_match_$,created,updated\n';
     const rows = result.rows.map(r =>
-      `${r.twitter_id},${r.username || ''},${r.followers_count},${r.bronze_points},${r.silver_points},${r.gold_points},${r.total_points},${r.real_points},${r.freeplay_dollars},${r.deposit_match_dollars},${r.created_at},${r.updated_at}`
+      [r.twitter_id, csvSafe(r.username), r.followers_count, r.bronze_points, r.silver_points, r.gold_points, r.total_points, r.real_points, r.freeplay_dollars, r.deposit_match_dollars, r.created_at, r.updated_at].join(',')
     ).join('\n');
 
     res.setHeader('Content-Type', 'text/csv');

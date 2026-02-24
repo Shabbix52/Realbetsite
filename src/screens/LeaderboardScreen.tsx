@@ -134,8 +134,8 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
         {/* Leaderboard table */}
         {data && data.users.length > 0 && (
           <div className="space-y-2">
-            {/* Column headers */}
-            <div className="flex items-center px-4 py-2 text-[10px] font-label tracking-wider text-rb-muted/30 uppercase">
+            {/* Column headers — hidden on small screens */}
+            <div className="hidden md:flex items-center px-4 py-2 text-[10px] font-label tracking-wider text-rb-muted/30 uppercase">
               <span className="w-12">Rank</span>
               <span className="flex-1">Player</span>
               <span className="w-28 text-right">Followers</span>
@@ -154,7 +154,7 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.02, duration: 0.3 }}
-                    className={`glass-panel rounded-xl p-4 flex items-center transition-all duration-300 ${
+                    className={`glass-panel rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-2 md:gap-0 transition-all duration-300 ${
                       isCurrentUser
                         ? 'border-brand-gold/30 bg-brand-gold/[0.03]'
                         : isTop3
@@ -165,50 +165,66 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
                       boxShadow: '0 0 20px rgba(246,196,74,0.05)',
                     } : undefined}
                   >
-                    {/* Rank */}
-                    <div className="w-12 flex-shrink-0">
-                      {isTop3 ? (
-                        <span className="text-xl">{MEDALS[user.rank - 1]}</span>
-                      ) : (
-                        <span className="text-sm font-bold font-label text-rb-muted/40">
-                          #{user.rank}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Player */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-sm font-bold truncate ${isCurrentUser ? 'text-brand-gold' : 'text-white/90'}`}>
-                          @{user.username || 'anonymous'}
-                        </p>
-                        {isCurrentUser && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-label tracking-wider flex-shrink-0">
-                            YOU
+                    {/* Top row on mobile: Rank + Player + REAL Points */}
+                    <div className="flex items-center w-full md:w-auto md:flex-1 min-w-0">
+                      {/* Rank */}
+                      <div className="w-10 md:w-12 flex-shrink-0">
+                        {isTop3 ? (
+                          <span className="text-xl">{MEDALS[user.rank - 1]}</span>
+                        ) : (
+                          <span className="text-sm font-bold font-label text-rb-muted/40">
+                            #{user.rank}
                           </span>
                         )}
                       </div>
+
+                      {/* Player */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-sm font-bold truncate ${isCurrentUser ? 'text-brand-gold' : 'text-white/90'}`}>
+                            @{user.username || 'anonymous'}
+                          </p>
+                          {isCurrentUser && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-label tracking-wider flex-shrink-0">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* REAL Points — visible always, right-aligned on mobile */}
+                      <div className="md:hidden text-right flex-shrink-0 ml-2">
+                        <span className={`text-sm font-bold font-label ${isTop3 ? 'text-brand-gold' : 'text-brand-gold/70'}`}>
+                          {user.realPoints.toLocaleString()}
+                        </span>
+                        <p className="text-[9px] text-rb-muted/30 font-label">REAL</p>
+                      </div>
                     </div>
 
-                    {/* Followers */}
-                    <div className="w-28 text-right flex-shrink-0">
-                      <span className="text-xs text-rb-muted/40 font-label">
-                        {formatNumber(user.followersCount)}
-                      </span>
-                    </div>
+                    {/* Bottom row on mobile: stats */}
+                    <div className="flex items-center pl-10 md:pl-0 gap-4 md:gap-0">
+                      {/* Followers */}
+                      <div className="md:w-28 md:text-right flex-shrink-0">
+                        <span className="text-xs text-rb-muted/40 font-label">
+                          <span className="md:hidden text-rb-muted/25 mr-1">Followers:</span>
+                          {formatNumber(user.followersCount)}
+                        </span>
+                      </div>
 
-                    {/* Power Score */}
-                    <div className="w-32 text-right flex-shrink-0">
-                      <span className={`text-sm font-bold font-label ${isTop3 ? 'text-white' : 'text-white/70'}`}>
-                        {user.totalPoints.toLocaleString()}
-                      </span>
-                    </div>
+                      {/* Power Score */}
+                      <div className="md:w-32 md:text-right flex-shrink-0">
+                        <span className={`text-sm font-bold font-label ${isTop3 ? 'text-white' : 'text-white/70'}`}>
+                          <span className="md:hidden text-rb-muted/25 text-xs font-normal mr-1">Power:</span>
+                          {user.totalPoints.toLocaleString()}
+                        </span>
+                      </div>
 
-                    {/* REAL Points */}
-                    <div className="w-28 text-right flex-shrink-0">
-                      <span className={`text-sm font-bold font-label ${isTop3 ? 'text-brand-gold' : 'text-brand-gold/70'}`}>
-                        {user.realPoints.toLocaleString()}
-                      </span>
+                      {/* REAL Points — desktop only */}
+                      <div className="hidden md:block w-28 text-right flex-shrink-0">
+                        <span className={`text-sm font-bold font-label ${isTop3 ? 'text-brand-gold' : 'text-brand-gold/70'}`}>
+                          {user.realPoints.toLocaleString()}
+                        </span>
+                      </div>
                     </div>
                   </motion.div>
                 );

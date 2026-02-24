@@ -239,7 +239,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     }
   }, []);
 
-  const handleTask = useCallback(async (task: 'follow' | 'discord' | 'wallet') => {
+  const handleTask = useCallback(async (task: 'follow' | 'discord') => {
     if (taskLoading) return;
 
     // ── Twitter / X ──

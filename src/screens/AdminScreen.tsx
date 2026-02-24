@@ -148,8 +148,20 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
     else setError(null);
   };
 
-  const handleExport = () => {
-    window.open(getApiUrl(`/admin/export?key=${adminKey}`), '_blank');
+  const handleExport = async () => {
+    try {
+      const res = await fetch(getApiUrl('/admin/export'), { headers });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'realbet-season1-export.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Export failed');
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
