@@ -5,8 +5,10 @@ import GlowEffects from './components/GlowEffects';
 import HeroScreen from './screens/HeroScreen';
 import BoxesScreen from './screens/BoxesScreen';
 import VIPScreen from './screens/VIPScreen';
+import LeaderboardScreen from './screens/LeaderboardScreen';
+import AdminScreen from './screens/AdminScreen';
 
-export type Screen = 'hero' | 'boxes' | 'vip';
+export type Screen = 'hero' | 'boxes' | 'vip' | 'leaderboard' | 'admin';
 
 export interface UserData {
   twitterId: string;
@@ -70,6 +72,11 @@ function App() {
     setScreen('vip');
   }, []);
 
+  // Check URL hash for admin route on load
+  useEffect(() => {
+    if (window.location.hash === '#admin') setScreen('admin');
+  }, []);
+
   return (
     <div className="relative min-h-screen bg-bg overflow-hidden">
       <ParticleBackground />
@@ -96,7 +103,13 @@ function App() {
           <BoxesScreen key="boxes" userData={userData} onComplete={handleBoxesDone} onUserProfile={handleUserProfileUpdate} />
         )}
         {screen === 'vip' && (
-          <VIPScreen key="vip" userData={userData} />
+          <VIPScreen key="vip" userData={userData} onLeaderboard={() => setScreen('leaderboard')} />
+        )}
+        {screen === 'leaderboard' && (
+          <LeaderboardScreen key="leaderboard" onBack={() => setScreen('vip')} currentUsername={userData.username} />
+        )}
+        {screen === 'admin' && (
+          <AdminScreen key="admin" onBack={() => setScreen('hero')} />
         )}
       </AnimatePresence>
     </div>

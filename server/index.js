@@ -466,6 +466,207 @@ app.post('/auth/wallet', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+//  LEADERBOARD — Public ranked REAL Points
+// ─────────────────────────────────────────────
+
+app.get('/auth/leaderboard', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const offset = parseInt(req.query.offset) || 0;
+
+  try {
+    // Try cache for page 1
+    if (offset === 0 && limit <= 100) {
+      const cached = await redis.get('leaderboard:top100');
+      if (cached) return res.json(JSON.parse(cached));
+    }
+
+    const result = await pool.query(
+      `SELECT username, followers_count, total_points,
+              bronze_points, silver_points, gold_points,
+              FLOOR(total_points * 0.4) AS real_points,
+              RANK() OVER (ORDER BY total_points DESC) AS rank
+       FROM scores
+       WHERE total_points > 0
+       ORDER BY total_points DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const countResult = await pool.query('SELECT COUNT(*) FROM scores WHERE total_points > 0');
+    const totalUsers = parseInt(countResult.rows[0].count);
+
+    const data = {
+      users: result.rows.map(r => ({
+        rank: parseInt(r.rank),
+        username: r.username,
+        followersCount: r.followers_count || 0,
+        totalPoints: r.total_points,
+        realPoints: parseInt(r.real_points),
+        bronzePoints: r.bronze_points,
+        silverPoints: r.silver_points,
+        goldPoints: r.gold_points,
+      })),
+      totalUsers,
+      limit,
+      offset,
+    };
+
+    // Cache first page for 2 minutes
+    if (offset === 0 && limit <= 100) {
+      await redis.setEx('leaderboard:top100', 120, JSON.stringify(data));
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('Leaderboard error:', err.message);
+    res.status(500).json({ error: 'Failed to load leaderboard' });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  ADMIN — Protected dashboard endpoints
+// ─────────────────────────────────────────────
+
+const ADMIN_KEY = process.env.ADMIN_KEY || 'realbet-admin-2026';
+
+function requireAdmin(req, res, next) {
+  const key = req.headers['x-admin-key'] || req.query.key;
+  if (key !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
+
+// Admin: Overview stats
+app.get('/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) AS total_users,
+        SUM(total_points) AS total_points_issued,
+        FLOOR(SUM(total_points) * 0.03) AS total_dollar_headline,
+        FLOOR(SUM(total_points * 0.30 / 20)) AS total_freeplay_exposure,
+        FLOOR(SUM(total_points * 0.30 / 20)) AS total_deposit_match_exposure,
+        FLOOR(SUM(total_points * 0.40)) AS total_real_points,
+        AVG(total_points)::INTEGER AS avg_points,
+        MAX(total_points) AS max_points,
+        AVG(followers_count)::INTEGER AS avg_followers,
+        COUNT(CASE WHEN gold_points > 0 THEN 1 END) AS completed_gold,
+        COUNT(CASE WHEN total_points > 0 THEN 1 END) AS active_users
+      FROM scores
+    `);
+
+    const tierDist = await pool.query(`
+      SELECT
+        CASE
+          WHEN followers_count < 1000 THEN '<1K'
+          WHEN followers_count < 5000 THEN '1K-5K'
+          WHEN followers_count < 10000 THEN '5K-10K'
+          WHEN followers_count < 25000 THEN '10K-25K'
+          WHEN followers_count < 50000 THEN '25K-50K'
+          WHEN followers_count < 100000 THEN '50K-100K'
+          WHEN followers_count < 250000 THEN '100K-250K'
+          ELSE '250K+'
+        END AS tier,
+        COUNT(*) AS count,
+        SUM(total_points) AS total_pts,
+        FLOOR(SUM(total_points * 0.30 / 20)) AS cash_exposure
+      FROM scores
+      WHERE total_points > 0
+      GROUP BY tier
+      ORDER BY MIN(followers_count)
+    `);
+
+    res.json({
+      overview: stats.rows[0],
+      tierDistribution: tierDist.rows,
+    });
+  } catch (err) {
+    console.error('Admin stats error:', err.message);
+    res.status(500).json({ error: 'Failed to load stats' });
+  }
+});
+
+// Admin: All users (paginated, sortable)
+app.get('/admin/users', requireAdmin, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const offset = parseInt(req.query.offset) || 0;
+  const sort = req.query.sort || 'total_points';
+  const order = req.query.order === 'asc' ? 'ASC' : 'DESC';
+  const search = req.query.search || '';
+
+  const allowedSorts = ['total_points', 'followers_count', 'username', 'created_at', 'gold_points'];
+  const sortCol = allowedSorts.includes(sort) ? sort : 'total_points';
+
+  try {
+    let query, countQuery, params, countParams;
+
+    if (search) {
+      query = `SELECT * FROM scores WHERE username ILIKE $3 ORDER BY ${sortCol} ${order} LIMIT $1 OFFSET $2`;
+      countQuery = `SELECT COUNT(*) FROM scores WHERE username ILIKE $1`;
+      params = [limit, offset, `%${search}%`];
+      countParams = [`%${search}%`];
+    } else {
+      query = `SELECT * FROM scores ORDER BY ${sortCol} ${order} LIMIT $1 OFFSET $2`;
+      countQuery = `SELECT COUNT(*) FROM scores`;
+      params = [limit, offset];
+      countParams = [];
+    }
+
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams),
+    ]);
+
+    res.json({
+      users: result.rows.map(r => ({
+        twitterId: r.twitter_id,
+        username: r.username,
+        followersCount: r.followers_count || 0,
+        bronzePoints: r.bronze_points,
+        silverPoints: r.silver_points,
+        goldPoints: r.gold_points,
+        totalPoints: r.total_points,
+        realPoints: Math.floor(r.total_points * 0.4),
+        cashExposure: Math.round((r.total_points * 0.6 / 20) * 100) / 100,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      })),
+      total: parseInt(countResult.rows[0].count),
+      limit,
+      offset,
+    });
+  } catch (err) {
+    console.error('Admin users error:', err.message);
+    res.status(500).json({ error: 'Failed to load users' });
+  }
+});
+
+// Admin: Export all data as CSV
+app.get('/admin/export', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT twitter_id, username, followers_count, bronze_points, silver_points, gold_points,
+              total_points, FLOOR(total_points * 0.4) AS real_points,
+              ROUND(total_points * 0.30 / 20, 2) AS freeplay_dollars,
+              ROUND(total_points * 0.30 / 20, 2) AS deposit_match_dollars,
+              created_at, updated_at
+       FROM scores ORDER BY total_points DESC`
+    );
+
+    const header = 'twitter_id,username,followers,bronze_pts,silver_pts,gold_pts,total_pts,real_pts,freeplay_$,deposit_match_$,created,updated\n';
+    const rows = result.rows.map(r =>
+      `${r.twitter_id},${r.username || ''},${r.followers_count},${r.bronze_points},${r.silver_points},${r.gold_points},${r.total_points},${r.real_points},${r.freeplay_dollars},${r.deposit_match_dollars},${r.created_at},${r.updated_at}`
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=realbet-season1-export.csv');
+    res.send(header + rows);
+  } catch (err) {
+    console.error('Export error:', err.message);
+    res.status(500).json({ error: 'Failed to export' });
+  }
+});
+
+// ─────────────────────────────────────────────
 //  Result page — sends postMessage to opener & closes popup
 // ─────────────────────────────────────────────
 

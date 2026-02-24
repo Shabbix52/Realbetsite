@@ -210,9 +210,10 @@ const LockIcon = ({ className }: { className?: string }) => (
 
 interface VIPScreenProps {
   userData: UserData;
+  onLeaderboard?: () => void;
 }
 
-const VIPScreen = ({ userData }: VIPScreenProps) => {
+const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
   const [shared, setShared] = useState(false);
 
   // Spec calculations
@@ -455,6 +456,20 @@ const VIPScreen = ({ userData }: VIPScreenProps) => {
                 </p>
               )}
             </div>
+
+            {/* Leaderboard link */}
+            {onLeaderboard && (
+              <button
+                onClick={onLeaderboard}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold text-sm font-bold font-label tracking-wider border border-brand-gold/10 transition-all"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 21h8m-4-4v4M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+                  <path d="M9 9h.01M15 9h.01" />
+                </svg>
+                VIEW LEADERBOARD
+              </button>
+            )}
 
             {/* Payment logos */}
             <div className="flex items-center justify-center gap-6 pt-2">
