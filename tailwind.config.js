@@ -19,6 +19,8 @@ export default {
           gold: '#C9A84C',
           'gold-dark': '#A08030',
         },
+        'blood-deep': '#4D0000',
+        'blood-glow': '#BF1220',
         rb: {
           muted: '#808A99',
           border: '#333840',

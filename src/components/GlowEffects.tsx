@@ -43,21 +43,33 @@ const GlowEffects = () => {
       <div
         className="fixed inset-0 z-[4] pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse 70% 65% at center, transparent 20%, rgba(5, 5, 8, 0.4) 60%, rgba(5, 5, 8, 0.85) 100%)',
+          background: 'radial-gradient(ellipse 70% 65% at center, transparent 20%, hsl(240 18% 2% / 0.4) 60%, hsl(240 18% 1% / 0.85) 100%)',
         }}
       />
 
       {/* Layer 5 (z-[5]): Light lines (desktop only) */}
       <div
-        className="fixed top-0 right-[20%] w-[2px] h-full z-[5] pointer-events-none hidden md:block rotate-[15deg]"
+        className="fixed z-[5] pointer-events-none hidden md:block"
         style={{
-          background: 'linear-gradient(180deg, transparent, hsl(355 83% 41% / 0.08), transparent)',
+          top: '10%',
+          right: '8%',
+          width: '2px',
+          height: '55%',
+          background: 'linear-gradient(to bottom, transparent, hsl(355 83% 41% / 0.15), hsl(355 83% 41% / 0.08), transparent)',
+          transform: 'rotate(15deg)',
+          filter: 'blur(1px)',
         }}
       />
       <div
-        className="fixed top-0 left-[10%] w-px h-full z-[5] pointer-events-none hidden lg:block rotate-[-8deg]"
+        className="fixed z-[5] pointer-events-none hidden lg:block"
         style={{
-          background: 'linear-gradient(180deg, transparent, hsl(355 83% 41% / 0.06), transparent)',
+          top: '25%',
+          left: '5%',
+          width: '1px',
+          height: '40%',
+          background: 'linear-gradient(to bottom, transparent, hsl(355 83% 41% / 0.08), transparent)',
+          transform: 'rotate(-8deg)',
+          filter: 'blur(1px)',
         }}
       />
 
@@ -65,8 +77,7 @@ const GlowEffects = () => {
       <div
         className="fixed inset-0 z-[6] pointer-events-none"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E")`,
-          backgroundSize: '512px 512px',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23dust)' opacity='0.04'/%3E%3C/svg%3E")`,
           mixBlendMode: 'overlay',
           opacity: 0.5,
         }}

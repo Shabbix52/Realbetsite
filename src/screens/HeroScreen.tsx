@@ -30,14 +30,14 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
         <div
           className="absolute inset-0 z-[1]"
           style={{
-            background: 'linear-gradient(to top, rgba(200, 0, 0, 0.85) 0%, rgba(170, 0, 0, 0.55) 40%, transparent 70%), linear-gradient(to left, rgba(170, 0, 0, 0.6) 0%, transparent 45%)',
+            background: 'linear-gradient(to top, hsl(355 83% 41% / 0.25) 0%, transparent 40%), linear-gradient(to left, hsl(355 83% 41% / 0.1) 0%, transparent 30%)',
           }}
         />
 
         {/* Shadow overlay */}
         <div
           className="absolute inset-0 z-[0]"
-          style={{ boxShadow: '0 0 120px 60px rgba(5, 5, 8, 0.8)' }}
+          style={{ boxShadow: '0 0 120px 60px hsl(0 0% 0% / 0.8)' }}
         />
 
         {/* Hero image */}
@@ -58,7 +58,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
         <div
           className="absolute inset-0 z-[3] pointer-events-none"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E")`,
             mixBlendMode: 'overlay',
             opacity: 0.6,
           }}
@@ -69,12 +69,12 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
       <div
         className="absolute inset-0 z-[7] pointer-events-none hidden md:block"
         style={{
-          background: 'radial-gradient(ellipse 50% 70% at 70% 50%, transparent 20%, rgba(5, 5, 8, 0.4) 70%, rgba(5, 5, 8, 0.7) 100%)',
+          background: 'radial-gradient(ellipse 50% 70% at 70% 50%, transparent 20%, hsl(0 0% 0% / 0.4) 70%, hsl(0 0% 0% / 0.7) 100%)',
         }}
       />
 
       {/* Light line */}
-      <div className="absolute top-20 right-[15%] w-px h-[60%] bg-gradient-to-b from-transparent via-[hsla(355,83%,41%,0.3)] to-transparent rotate-12 hidden md:block z-[9]" />
+      <div className="absolute top-20 right-[15%] w-px h-[60%] bg-gradient-to-b from-transparent via-blood-glow/30 to-transparent rotate-12 hidden md:block z-[9]" />
 
       {/* Text container */}
       <div className="relative z-20 max-w-3xl mt-[-8vh] md:ml-8">
@@ -129,8 +129,8 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
 
       {/* Right side glow */}
       <div className="absolute right-0 top-0 bottom-0 w-1/2 hidden md:block z-[1]">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to left, rgba(190, 0, 0, 0.75), transparent)' }} />
-        <div className="absolute bottom-[15%] right-[15%] w-80 h-80 rounded-full blur-[120px]" style={{ background: 'rgba(210, 10, 10, 0.4)' }} />
+        <div className="absolute inset-0 bg-gradient-to-l from-blood-deep/25 to-transparent" />
+        <div className="absolute bottom-[15%] right-[15%] w-80 h-80 rounded-full bg-brand-red/[0.08] blur-[120px]" />
       </div>
     </section>
   );
