@@ -604,8 +604,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               {/* Task Cards */}
               <div className="space-y-3">
                 {/* Follow Twitter */}
-                <div className={`glass-panel rounded-xl p-5 flex items-center justify-between transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : ''}`}>
-                  <div className="flex items-center gap-4">
+                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : ''}`}>
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
                       {tasks.follow ? (
                         <CheckCircleIcon className="w-5 h-5 text-green-400" />
@@ -641,8 +641,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 </div>
 
                 {/* Join Discord */}
-                <div className={`glass-panel rounded-xl p-5 flex items-center justify-between transition-all duration-300 ${tasks.discord ? 'border-green-500/20' : ''}`}>
-                  <div className="flex items-center gap-4">
+                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.discord ? 'border-green-500/20' : ''}`}>
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                       {tasks.discord ? (
                         <CheckCircleIcon className="w-5 h-5 text-green-400" />

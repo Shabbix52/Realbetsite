@@ -225,7 +225,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
     >
       <div className="w-full max-w-6xl mx-auto pt-6">
         {/* Nav */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={onBack}
@@ -236,15 +236,15 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
               </svg>
               BACK
             </button>
-            <h2 className="font-display text-2xl font-bold tracking-tight uppercase">
+            <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight uppercase">
               Admin <span className="text-brand-red">Panel</span>
             </h2>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={handleExport} className="px-4 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold font-label tracking-wider hover:bg-green-500/30 transition-colors">
-              EXPORT CSV
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={handleExport} className="px-3 sm:px-4 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold font-label tracking-wider hover:bg-green-500/30 transition-colors">
+              EXPORT
             </button>
-            <button onClick={() => { setAuthenticated(false); setAdminKey(''); localStorage.removeItem('realbet_admin_key'); }} className="px-4 py-2 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 transition-colors">
+            <button onClick={() => { setAuthenticated(false); setAdminKey(''); localStorage.removeItem('realbet_admin_key'); }} className="px-3 sm:px-4 py-2 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 transition-colors">
               LOGOUT
             </button>
           </div>

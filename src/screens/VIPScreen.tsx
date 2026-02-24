@@ -124,52 +124,52 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
           <img
             src="/realbet-logo.png"
             alt="RealBet"
-            className="absolute top-5 left-6 h-5 md:h-6 object-contain pointer-events-none opacity-50"
+            className="absolute top-3 sm:top-5 left-4 sm:left-6 h-4 sm:h-5 md:h-6 object-contain pointer-events-none opacity-50"
             draggable={false}
           />
 
           {/* SEASON 1 label */}
-          <p className="absolute top-11 left-6 font-label text-[8px] tracking-[0.3em] text-rb-muted/40">
+          <p className="absolute top-8 sm:top-11 left-4 sm:left-6 font-label text-[7px] sm:text-[8px] tracking-[0.3em] text-rb-muted/40">
             SEASON 1
           </p>
 
           {/* Top-center: VIP title */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-center">
-            <div className="text-4xl md:text-5xl font-display font-bold leading-none tracking-wider text-white">VIP</div>
-            <div className="text-brand-gold text-[10px] md:text-xs tracking-[0.4em] font-label mt-0.5">CASINO</div>
+          <div className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 text-center">
+            <div className="text-2xl sm:text-4xl md:text-5xl font-display font-bold leading-none tracking-wider text-white">VIP</div>
+            <div className="text-brand-gold text-[8px] sm:text-[10px] md:text-xs tracking-[0.4em] font-label mt-0.5">CASINO</div>
           </div>
 
           {/* Top-right: QR grid */}
-          <div className="absolute top-4 right-5 w-12 h-12 md:w-14 md:h-14 bg-white/5 rounded border border-rb-border/50 grid grid-cols-5 grid-rows-5 gap-px p-1">
+          <div className="absolute top-3 sm:top-4 right-3 sm:right-5 w-9 h-9 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white/5 rounded border border-rb-border/50 grid grid-cols-5 grid-rows-5 gap-px p-0.5 sm:p-1">
             {Array.from({ length: 25 }, (_, i) => (
               <div key={i} className={`rounded-[1px] ${Math.random() > 0.4 ? 'bg-white/50' : 'bg-transparent'}`} />
             ))}
           </div>
 
           {/* Left-center: Avatar + info side by side */}
-          <div className="absolute left-6 top-1/2 -translate-y-1/3 flex items-center gap-4">
-            <div className="relative">
+          <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/3 flex items-center gap-2.5 sm:gap-4 max-w-[65%]">
+            <div className="relative flex-shrink-0">
               <img
                 src={userData.pfp}
                 alt="avatar"
-                className="w-16 h-16 md:w-20 md:h-20 rounded-full border-2 border-brand-gold/60 bg-rb-card object-cover"
+                className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full border-2 border-brand-gold/60 bg-rb-card object-cover"
               />
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#1DA1F2] flex items-center justify-center border-2 border-rb-bg">
-                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#1DA1F2] flex items-center justify-center border-2 border-rb-bg">
+                <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
               </div>
             </div>
-            <div>
-              <p className="text-lg md:text-xl font-bold text-white">@{userData.username}</p>
-              <p className="text-brand-gold text-sm font-medium">{userData.tierName}</p>
+            <div className="min-w-0">
+              <p className="text-base sm:text-lg md:text-xl font-bold text-white truncate">@{userData.username}</p>
+              <p className="text-brand-gold text-xs sm:text-sm font-medium">{userData.tierName}</p>
             </div>
           </div>
 
           {/* Bottom-left: Points */}
-          <div className="absolute bottom-4 left-6">
-            <p className="text-brand-gold/60 text-[10px] tracking-[0.2em] font-label mb-0.5">BONUS POINTS</p>
-            <p className="text-brand-gold text-2xl md:text-3xl font-bold font-label">
+          <div className="absolute bottom-3 sm:bottom-4 left-4 sm:left-6">
+            <p className="text-brand-gold/60 text-[8px] sm:text-[10px] tracking-[0.2em] font-label mb-0.5">BONUS POINTS</p>
+            <p className="text-brand-gold text-lg sm:text-2xl md:text-3xl font-bold font-label">
               {displayPoints.toLocaleString()} pts
             </p>
           </div>
@@ -247,7 +247,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen flex flex-col items-center relative px-6 z-10 overflow-y-auto"
+      className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10 overflow-y-auto"
     >
       {/* Step indicator */}
       <div className="fixed top-4 right-4 z-50">
@@ -300,21 +300,21 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
           {/* Right Column: Info Panel */}
           <motion.div variants={itemVariants} className="flex-1 w-full max-w-sm mx-auto lg:mx-0 space-y-6">
             {/* Power Score + Allocation Panel */}
-            <div className="glass-panel rounded-2xl p-6">
-              <div className="flex items-baseline justify-between">
+            <div className="glass-panel rounded-2xl p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4">
                 <div>
-                  <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-2">
+                  <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-1 sm:mb-2">
                     Power Score
                   </p>
-                  <p className="text-4xl font-bold font-label text-white">
+                  <p className="text-3xl sm:text-4xl font-bold font-label text-white">
                     {powerScore.toLocaleString()}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <p className="font-label text-[10px] tracking-wider text-rb-muted/40 uppercase">
                     Total Allocation
                   </p>
-                  <p className="text-brand-gold text-2xl font-bold font-label">
+                  <p className="text-brand-gold text-xl sm:text-2xl font-bold font-label">
                     ${allocationDollars.toLocaleString()}
                   </p>
                 </div>
@@ -339,49 +339,49 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                   </p>
 
                   {/* Free Play (30%) */}
-                  <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-green-400 text-sm">🎰</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-bold text-white/90">Wager Bonus</p>
                         <p className="text-[10px] text-rb-muted/40 font-label">{split.freePlay.wager}x playthrough</p>
                       </div>
                     </div>
-                    <p className="text-green-400 text-lg font-bold font-label">
-                      Up to ${split.freePlay.dollars.toLocaleString()}
+                    <p className="text-green-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
+                      ${split.freePlay.dollars.toLocaleString()}
                     </p>
                   </div>
 
                   {/* Deposit Match (30%) */}
-                  <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-blue-400 text-sm">💰</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-bold text-white/90">Deposit Match</p>
                         <p className="text-[10px] text-rb-muted/40 font-label">{split.depositMatch.wager}x playthrough</p>
                       </div>
                     </div>
-                    <p className="text-blue-400 text-lg font-bold font-label">
-                      Up to ${split.depositMatch.dollars.toLocaleString()}
+                    <p className="text-blue-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
+                      ${split.depositMatch.dollars.toLocaleString()}
                     </p>
                   </div>
 
                   {/* REAL Points (40%) */}
-                  <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center">
+                  <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-brand-gold text-sm">⭐</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-bold text-white/90">REAL Points</p>
-                        <p className="text-[10px] text-rb-muted/40 font-label">Credited to leaderboard → Season 1 Airdrop</p>
+                        <p className="text-[10px] text-rb-muted/40 font-label truncate">Leaderboard → Airdrop</p>
                       </div>
                     </div>
-                    <p className="text-brand-gold text-lg font-bold font-label">
+                    <p className="text-brand-gold text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
                       {split.realPoints.toLocaleString()}
                     </p>
                   </div>
@@ -472,7 +472,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             )}
 
             {/* Payment logos */}
-            <div className="flex items-center justify-center gap-6 pt-2">
+            <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap pt-2">
               {['Apple Pay', 'Visa', 'Mastercard', 'Google Pay'].map((name) => (
                 <span key={name} className="text-[10px] text-rb-muted/25 tracking-wider font-label uppercase">
                   {name}
