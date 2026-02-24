@@ -26,41 +26,17 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
         className="absolute right-[-8%] md:right-[-4%] lg:right-[0%] bottom-0 z-[8] pointer-events-none hidden md:block"
         style={{ width: 'clamp(500px, 55vw, 950px)' }}
       >
-        {/* Color overlay */}
-        <div
-          className="absolute inset-0 z-[1]"
-          style={{
-            background: 'linear-gradient(to top, hsl(355 83% 41% / 0.25) 0%, transparent 40%), linear-gradient(to left, hsl(355 83% 41% / 0.1) 0%, transparent 30%)',
-          }}
-        />
-
-        {/* Shadow overlay */}
-        <div
-          className="absolute inset-0 z-[0]"
-          style={{ boxShadow: '0 0 120px 60px hsl(0 0% 0% / 0.8)' }}
-        />
-
-        {/* Hero image */}
+        {/* Hero image — filters handle tinting; drop-shadow follows the alpha silhouette */}
         <img
           src="/conor-hero.png"
           alt=""
           className="relative z-[2] w-full h-auto object-contain object-bottom"
           style={{
-            filter: 'saturate(0.85) contrast(1.15) brightness(0.9)',
+            filter: 'saturate(0.85) contrast(1.15) brightness(0.9) drop-shadow(0 0 80px hsl(0 0% 0% / 0.9)) drop-shadow(0 0 40px hsl(355 83% 41% / 0.2))',
             maskImage: 'linear-gradient(to top, transparent 0%, black 8%), linear-gradient(to left, transparent 0%, black 5%), linear-gradient(to right, transparent 0%, black 15%)',
             WebkitMaskImage: 'linear-gradient(to top, transparent 0%, black 8%), linear-gradient(to left, transparent 0%, black 5%)',
             WebkitMaskComposite: 'destination-in',
             maskComposite: 'intersect' as any,
-          }}
-        />
-
-        {/* Noise overlay on image */}
-        <div
-          className="absolute inset-0 z-[3] pointer-events-none"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E")`,
-            mixBlendMode: 'overlay',
-            opacity: 0.6,
           }}
         />
       </motion.div>

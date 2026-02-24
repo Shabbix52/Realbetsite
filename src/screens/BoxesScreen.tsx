@@ -281,10 +281,23 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                   .catch(() => { /* ignore */ });
               }
             }
+
+            // Auto-chain: open follow page immediately after OAuth
+            window.open('https://x.com/Realbet', '_blank');
+            setTimeout(() => {
+              setTasks(p => {
+                const updated = { ...p, follow: true };
+                checkAllTasks(updated);
+                return updated;
+              });
+              setTaskLoading(null);
+            }, 12000);
+          } else {
+            setTaskLoading(null);
           }
-          setTaskLoading(null);
         });
-      } else {
+      } else if (!tasks.follow) {
+        // Already verified on a prior session — just open follow
         window.open('https://x.com/Realbet', '_blank');
         setTaskLoading('follow');
         setTimeout(() => {
@@ -294,7 +307,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             return updated;
           });
           setTaskLoading(null);
-        }, 15000);
+        }, 12000);
       }
       return;
     }
@@ -307,10 +320,43 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           if (result.success && result.user?.id) {
             setDiscordVerified(true);
             setDiscordUserId(result.user.id);
+
+            // Auto-chain: open Discord invite immediately after OAuth
+            window.open('https://discord.gg/realbetio', '_blank');
+            const userId = result.user.id;
+            let attempts = 0;
+            const maxAttempts = 15;
+
+            const checkMembership = async () => {
+              attempts++;
+              try {
+                const res = await fetch(getApiUrl(`/auth/discord/check-member/${userId}`));
+                const data = await res.json();
+                if (data.member) {
+                  setTasks(p => {
+                    const updated = { ...p, discord: true };
+                    checkAllTasks(updated);
+                    return updated;
+                  });
+                  setTaskLoading(null);
+                  return;
+                }
+              } catch { /* retry */ }
+
+              if (attempts < maxAttempts) {
+                setTimeout(checkMembership, 2000);
+              } else {
+                setTaskLoading(null);
+              }
+            };
+
+            setTimeout(checkMembership, 1000);
+          } else {
+            setTaskLoading(null);
           }
-          setTaskLoading(null);
         });
-      } else {
+      } else if (!tasks.discord) {
+        // Already verified on a prior session — just open invite
         window.open('https://discord.gg/realbetio', '_blank');
         setTaskLoading('discord');
         let attempts = 0;
@@ -343,7 +389,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       }
       return;
     }
-  }, [taskLoading, openOAuth, discordUserId, onUserProfile, checkAllTasks]);
+  }, [taskLoading, twitterVerified, discordVerified, tasks, openOAuth, discordUserId, onUserProfile, checkAllTasks]);
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
