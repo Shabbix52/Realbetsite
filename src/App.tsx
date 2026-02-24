@@ -14,8 +14,7 @@ export interface UserData {
   pfp: string;
   tierName: string;
   totalPoints: number;
-  walletMultiplier: number;
-  walletAddress?: string;
+  followersCount: number;
 }
 
 const USER_PROFILE_KEY = 'realbet_user_profile';
@@ -49,7 +48,7 @@ function App() {
     pfp: savedProfile?.pfp || 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale',
     tierName: 'House Legend',
     totalPoints: 0,
-    walletMultiplier: 1,
+    followersCount: 0,
   });
 
   const handleGenerateClick = useCallback(() => {
@@ -61,13 +60,12 @@ function App() {
     saveUserProfile({ twitterId, username, pfp });
   }, []);
 
-  const handleBoxesDone = useCallback((points: number, tierName: string, multiplier: number, walletAddress?: string) => {
+  const handleBoxesDone = useCallback((points: number, tierName: string, followersCount: number) => {
     setUserData(prev => ({
       ...prev,
       totalPoints: points,
       tierName,
-      walletMultiplier: multiplier,
-      walletAddress,
+      followersCount,
     }));
     setScreen('vip');
   }, []);

@@ -1,11 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
-
-function calculateCreditValue(points: number): number {
-  return Math.round(points / 10);
-}
+import { getTierForFollowers, calculateAllocationDollars, calculateRewardSplit } from '../tierConfig';
 
 /* ── Stagger animation variants ── */
 const containerVariants = {
@@ -218,12 +215,16 @@ interface VIPScreenProps {
 const VIPScreen = ({ userData }: VIPScreenProps) => {
   const [shared, setShared] = useState(false);
 
-  const creditValue = calculateCreditValue(userData.totalPoints);
-  const displayPoints = useCountUp(userData.totalPoints, 1200);
+  // Spec calculations
+  const powerScore = userData.totalPoints;
+  const tier = getTierForFollowers(userData.followersCount);
+  const allocationDollars = calculateAllocationDollars(powerScore);
+  const split = calculateRewardSplit(powerScore, tier);
+  const displayPoints = useCountUp(powerScore, 1200);
 
   const handleShare = () => {
     const text = encodeURIComponent(
-      `I just earned my @RealBet Season 1 VIP Card\n\n${userData.totalPoints.toLocaleString()} pts locked.\n\nThe House is open.\n\n#RealBetSeason1`,
+      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Points\n\n@RealBet | The House is open.\n\n#RealBetSeason1`,
     );
     window.open(
       `https://twitter.com/intent/tweet?text=${text}`,
@@ -245,7 +246,7 @@ const VIPScreen = ({ userData }: VIPScreenProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen flex flex-col items-center relative px-6 z-10 overflow-y-auto"
+      className="min-h-screen flex flex-col items-center relative px-6 z-10 overflow-y-auto"
     >
       {/* Step indicator */}
       <div className="fixed top-4 right-4 z-50">
@@ -260,15 +261,32 @@ const VIPScreen = ({ userData }: VIPScreenProps) => {
         animate="show"
         className="w-full max-w-4xl mx-auto py-8"
       >
-        {/* ── Heading (above both columns) ── */}
-        <motion.div variants={itemVariants} className="text-center mb-10">
-          <h2 className="font-display text-4xl md:text-5xl font-bold tracking-tight uppercase mb-3 text-center">
-            Claim Your{' '}
-            <span className="text-brand-red">Rewards</span>
-          </h2>
-          <p className="text-rb-muted/60 text-sm mb-10 text-center">
-            Share your VIP card to confirm your allocation.
+        {/* ── Big Allocation Headline (optics layer) ── */}
+        <motion.div variants={itemVariants} className="text-center mb-8">
+          <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase mb-3">
+            Your Season 1 Rewards
           </p>
+          <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight uppercase mb-2">
+            Season 1{' '}
+            <span className="text-brand-red">Allocation</span>
+          </h2>
+          <motion.p
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3, type: 'spring', stiffness: 100 }}
+            className="text-5xl md:text-7xl font-bold font-label text-white mt-2"
+            style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}
+          >
+            ${allocationDollars.toLocaleString()}
+          </motion.p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-brand-gold text-lg md:text-xl font-bold font-label mt-2"
+          >
+            {displayPoints.toLocaleString()} Power Points
+          </motion.p>
         </motion.div>
 
         {/* ── Two-column layout ── */}
@@ -280,41 +298,118 @@ const VIPScreen = ({ userData }: VIPScreenProps) => {
 
           {/* Right Column: Info Panel */}
           <motion.div variants={itemVariants} className="flex-1 w-full max-w-sm mx-auto lg:mx-0 space-y-6">
-            {/* Points + Credit Panel */}
+            {/* Power Score + Allocation Panel */}
             <div className="glass-panel rounded-2xl p-6">
               <div className="flex items-baseline justify-between">
                 <div>
                   <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-2">
-                    Your Season 1 Points
+                    Power Score
                   </p>
                   <p className="text-4xl font-bold font-label text-white">
-                    {userData.totalPoints.toLocaleString()}
+                    {powerScore.toLocaleString()}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="font-label text-[10px] tracking-wider text-rb-muted/40 uppercase">
-                    Credit Value
+                    Total Allocation
                   </p>
                   <p className="text-brand-gold text-2xl font-bold font-label">
-                    ${creditValue}
+                    ${allocationDollars.toLocaleString()}
                   </p>
                 </div>
               </div>
-
               <p className="text-rb-muted/30 text-[10px] font-label mt-3">
-                Points → Credit is tier-based. Higher tiers convert better.
+                {tier.label} follower tier • Rewards capped per tier for operator safety.
               </p>
             </div>
 
-            {/* Perks list */}
-            <div className="space-y-2 px-1">
-              {['Spend as casino credit', 'Boost leaderboard rank', 'Unlock Season 1 perks'].map((perk) => (
-                <div key={perk} className="flex items-center gap-3">
-                  <span className="text-brand-gold/50 text-xs">→</span>
-                  <span className="text-rb-muted/60 text-sm">{perk}</span>
-                </div>
-              ))}
-            </div>
+            {/* Reward Breakdown — revealed after share */}
+            <AnimatePresence>
+              {shared && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase">
+                    Reward Breakdown
+                  </p>
+
+                  {/* Free Play (30%) */}
+                  <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                        <span className="text-green-400 text-sm">🎰</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white/90">Wager Bonus</p>
+                        <p className="text-[10px] text-rb-muted/40 font-label">{split.freePlay.wager}x playthrough</p>
+                      </div>
+                    </div>
+                    <p className="text-green-400 text-lg font-bold font-label">
+                      Up to ${split.freePlay.dollars.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Deposit Match (30%) */}
+                  <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                        <span className="text-blue-400 text-sm">💰</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white/90">Deposit Match</p>
+                        <p className="text-[10px] text-rb-muted/40 font-label">{split.depositMatch.wager}x playthrough</p>
+                      </div>
+                    </div>
+                    <p className="text-blue-400 text-lg font-bold font-label">
+                      Up to ${split.depositMatch.dollars.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* REAL Points (40%) */}
+                  <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center">
+                        <span className="text-brand-gold text-sm">⭐</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white/90">REAL Points</p>
+                        <p className="text-[10px] text-rb-muted/40 font-label">Credited to leaderboard → Season 1 Airdrop</p>
+                      </div>
+                    </div>
+                    <p className="text-brand-gold text-lg font-bold font-label">
+                      {split.realPoints.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Total Cash Allocation */}
+                  <div className="text-center pt-2">
+                    <p className="text-rb-muted/30 text-[10px] font-label">
+                      Max Cash Allocation: <span className="text-white/60">${split.totalCash.toLocaleString()}</span> • REAL Points: no cap
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Pre-share perks */}
+            {!shared && (
+              <div className="space-y-2 px-1">
+                {[
+                  'Up to 30% as Free Play wager bonus',
+                  'Up to 30% as Deposit Match',
+                  '40% as REAL Points → Leaderboard → Airdrop',
+                ].map((perk) => (
+                  <div key={perk} className="flex items-center gap-3">
+                    <span className="text-brand-gold/50 text-xs">→</span>
+                    <span className="text-rb-muted/60 text-sm">{perk}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Share + Claim buttons */}
             <div className="space-y-3">
@@ -330,7 +425,7 @@ const VIPScreen = ({ userData }: VIPScreenProps) => {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
-                {shared ? 'SHARED ✓' : 'SHARE & EARN +1,000 BONUS'}
+                {shared ? 'SHARED ✓' : 'SHARE ON X TO REVEAL REWARDS'}
               </button>
 
               <button
@@ -346,17 +441,17 @@ const VIPScreen = ({ userData }: VIPScreenProps) => {
                 } : undefined}
               >
                 {!shared && <LockIcon className="w-4 h-4" />}
-                {shared ? `CLAIM $${creditValue} CREDIT` : `CLAIM $${creditValue} CREDIT`}
+                {shared ? `CLAIM $${split.totalCash.toLocaleString()} + ${split.realPoints.toLocaleString()} REAL PTS` : 'CLAIM REWARDS'}
               </button>
 
               {!shared && (
                 <p className="text-center text-[10px] text-rb-muted/25 tracking-widest font-label">
-                  Share your VIP card to unlock claim
+                  Share on X to reveal your full reward breakdown
                 </p>
               )}
               {shared && (
                 <p className="text-center text-[10px] text-rb-muted/40 tracking-widest font-label">
-                  Credit unlocks after first $20 deposit. 1× wagering requirement.
+                  Free Play: {split.freePlay.wager}x playthrough • Deposit Match: {split.depositMatch.wager}x playthrough
                 </p>
               )}
             </div>

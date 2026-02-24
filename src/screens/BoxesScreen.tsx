@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrowserProvider, formatEther } from 'ethers';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
 import { useOAuthPopup } from '../hooks/useOAuthPopup';
 import { getApiUrl } from '../config';
+import { getTierForFollowers } from '../tierConfig';
 
 type BoxType = 'bronze' | 'silver' | 'gold';
 type BoxState = 'locked' | 'ready' | 'opening' | 'revealed';
@@ -30,9 +30,9 @@ const BOX_GRADIENTS: Record<BoxType, string> = {
 };
 
 const BOX_POINTS: Record<BoxType, [number, number]> = {
-  bronze: [500, 1500],
-  silver: [2000, 5000],
-  gold: [10000, 25000],
+  bronze: [100, 500],
+  silver: [500, 1100],
+  gold: [0, 0], // Gold is deterministic per follower tier — see getTierForFollowers
 };
 
 const BOX_TITLE_COLORS: Record<BoxType, string> = {
@@ -56,21 +56,6 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/** Follower-based multiplier for point ranges */
-function followerMultiplier(followers: number): number {
-  if (followers >= 50000) return 4;
-  if (followers >= 10000) return 3;
-  if (followers >= 1000)  return 2;
-  if (followers >= 100)   return 1.5;
-  return 1;
-}
-
-function scaledPointRange(type: BoxType, followers: number): [number, number] {
-  const [min, max] = BOX_POINTS[type];
-  const m = followerMultiplier(followers);
-  return [Math.floor(min * m), Math.floor(max * m)];
-}
-
 const STORAGE_KEY = 'realbet_box_results';
 const AUTH_STATE_KEY = 'realbet_auth_state';
 
@@ -81,7 +66,7 @@ interface SavedAuthState {
   followersCount: number;
   discordVerified: boolean;
   discordUserId: string | null;
-  tasks: { follow: boolean; discord: boolean; wallet: boolean };
+  tasks: { follow: boolean; discord: boolean };
 }
 
 function loadSavedBoxes(): BoxData[] | null {
@@ -114,7 +99,7 @@ function saveAuthState(state: SavedAuthState) {
 
 interface BoxesScreenProps {
   userData: UserData;
-  onComplete: (points: number, tierName: string, multiplier: number, walletAddress?: string) => void;
+  onComplete: (points: number, tierName: string, followersCount: number) => void;
   onUserProfile: (twitterId: string, username: string, pfp: string) => void;
 }
 
@@ -147,13 +132,11 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const [tasks, setTasks] = useState(() => savedAuth?.tasks ?? {
     follow: false,
     discord: false,
-    wallet: false,
   });
   const [twitterVerified, setTwitterVerified] = useState(() => savedAuth?.twitterVerified ?? false);
   const [discordVerified, setDiscordVerified] = useState(() => savedAuth?.discordVerified ?? false);
   const [discordUserId, setDiscordUserId] = useState<string | null>(() => savedAuth?.discordUserId ?? null);
   const [taskLoading, setTaskLoading] = useState<string | null>(null);
-  const [walletData, setWalletData] = useState<{ address: string; fullAddress: string; balance: number; chain: string; multiplier: number } | null>(null);
   const [allDone, setAllDone] = useState(() => {
     const gold = initialBoxes.find(b => b.type === 'gold');
     return gold?.state === 'revealed';
@@ -175,11 +158,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   }, [twitterVerified, twitterId, twitterUsername, followersCount, discordVerified, discordUserId, tasks]);
 
   // Save scores to DB
-  const saveScoresToDB = useCallback(async (currentBoxes: BoxData[], mult?: number) => {
+  const saveScoresToDB = useCallback(async (currentBoxes: BoxData[]) => {
     const tid = twitterId;
     if (!tid) return;
     const total = currentBoxes.reduce((sum, b) => sum + b.points, 0);
-    const m = mult ?? (walletData ? walletData.multiplier : 1);
     try {
       await fetch(getApiUrl('/auth/scores'), {
         method: 'POST',
@@ -189,18 +171,16 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           username: twitterUsername,
           followersCount,
           boxes: currentBoxes,
-          walletMultiplier: m,
-          totalPoints: Math.floor(total * m),
+          walletMultiplier: 1,
+          totalPoints: total,
         }),
       });
     } catch { /* non-blocking */ }
-  }, [twitterId, twitterUsername, followersCount, walletData]);
+  }, [twitterId, twitterUsername, followersCount]);
 
   const totalPoints = boxes.reduce((sum, b) => sum + b.points, 0);
-  const multiplier = walletData ? walletData.multiplier : 1;
-  const adjustedTotal = Math.floor(totalPoints * multiplier);
-  const displayTotal = useCountUp(adjustedTotal, 1000);
-  const completedTasks = [tasks.follow, tasks.discord, tasks.wallet].filter(Boolean).length;
+  const displayTotal = useCountUp(totalPoints, 1000);
+  const completedTasks = [tasks.follow, tasks.discord].filter(Boolean).length;
 
   const openBox = useCallback((index: number) => {
     const box = boxes[index];
@@ -211,8 +191,16 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
     // After shake animation, reveal
     setTimeout(() => {
-      const [min, max] = scaledPointRange(box.type, followersCount);
-      const points = randomInRange(min, max);
+      let points: number;
+      if (box.type === 'gold') {
+        // Gold: deterministic from follower tier table
+        const tier = getTierForFollowers(followersCount);
+        points = tier.goldPoints;
+      } else {
+        // Bronze/Silver: random within spec range
+        const [min, max] = BOX_POINTS[box.type];
+        points = randomInRange(min, max);
+      }
       const tierName = pickRandom(TIER_NAMES[box.type]);
 
       setBoxes(prev => {
@@ -355,62 +343,12 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       }
       return;
     }
-
-    // ── Wallet ──
-    if (task === 'wallet') {
-      setTaskLoading('wallet');
-
-      try {
-        if (!window.ethereum) {
-          window.open('https://metamask.io/download/', '_blank');
-          setTaskLoading(null);
-          return;
-        }
-
-        const provider = new BrowserProvider(window.ethereum);
-        const accounts = await provider.send('eth_requestAccounts', []);
-        const address = accounts[0];
-
-        const balance = await provider.getBalance(address);
-        const network = await provider.getNetwork();
-        const balEth = parseFloat(formatEther(balance));
-
-        const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
-        const mult = Math.min(1 + balEth * 0.1, 4);
-
-        setTasks(prev => {
-          const updated = { ...prev, wallet: true };
-          checkAllTasks(updated);
-          return updated;
-        });
-
-        setWalletData({
-          address: shortAddr,
-          fullAddress: address,
-          balance: Math.round(balEth * 10000) / 10000,
-          chain: network.name,
-          multiplier: Math.round(mult * 10) / 10,
-        });
-
-        try {
-          await fetch(getApiUrl('/auth/wallet'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address, chain: network.name, balance: balEth }),
-          });
-        } catch { /* non-blocking */ }
-      } catch (err: any) {
-        console.error('Wallet connection failed:', err);
-      }
-
-      setTaskLoading(null);
-    }
   }, [taskLoading, openOAuth, discordUserId, onUserProfile, checkAllTasks]);
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
-    saveScoresToDB(boxes, multiplier);
-    onComplete(adjustedTotal, finalTier, multiplier, walletData?.fullAddress);
+    saveScoresToDB(boxes);
+    onComplete(totalPoints, finalTier, followersCount);
   };
 
   // Auto-advance to VIP if gold was already revealed on mount
@@ -422,7 +360,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       const finalTier = initialBoxes[2].tierName || initialBoxes[1].tierName || initialBoxes[0].tierName;
       const total = initialBoxes.reduce((s, b) => s + b.points, 0);
       const timer = setTimeout(() => {
-        onComplete(Math.floor(total * multiplier), finalTier, multiplier);
+        onComplete(total, finalTier, followersCount);
       }, 600);
       return () => clearTimeout(timer);
     }
@@ -651,13 +589,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-label text-[10px] tracking-wider text-rb-muted/50">Gold Box Unlock</span>
-                  <span className="font-label text-[10px] tracking-wider text-rb-muted/50">{completedTasks}/3 completed</span>
+                  <span className="font-label text-[10px] tracking-wider text-rb-muted/50">{completedTasks}/2 completed</span>
                 </div>
                 <div className="h-1 bg-rb-border rounded-full overflow-hidden">
                   <motion.div
                     className="h-full bg-brand-gold rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ width: `${(completedTasks / 3) * 100}%` }}
+                    animate={{ width: `${(completedTasks / 2) * 100}%` }}
                     transition={{ duration: 0.5 }}
                   />
                 </div>
@@ -736,47 +674,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       : tasks.discord ? 'DONE' : 'JOIN'}
                   </button>
                 </div>
-
-                {/* Connect Wallet */}
-                <div className={`glass-panel rounded-xl p-5 flex items-center justify-between transition-all duration-300 ${tasks.wallet ? 'border-green-500/20' : ''}`}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-brand-red/10 flex items-center justify-center flex-shrink-0">
-                      {tasks.wallet ? (
-                        <CheckCircleIcon className="w-5 h-5 text-green-400" />
-                      ) : (
-                        <svg className="w-5 h-5 text-brand-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold tracking-wider text-white/90">Connect Wallet</p>
-                      <p className="text-xs text-brand-gold/60 font-label">Up to 4× multiplier</p>
-                      {walletData && (
-                        <p className="text-xs text-brand-gold mt-1">
-                          {walletData.address} · {walletData.balance} ETH · {walletData.multiplier}x
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => !tasks.wallet && handleTask('wallet')}
-                    disabled={tasks.wallet || taskLoading === 'wallet'}
-                    className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all ${
-                      tasks.wallet
-                        ? 'bg-green-500/20 text-green-400 cursor-default'
-                        : 'border border-brand-red/30 text-brand-red hover:bg-brand-red/10 cursor-pointer'
-                    } ${taskLoading === 'wallet' ? 'opacity-50' : ''}`}
-                  >
-                    {taskLoading === 'wallet' ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : tasks.wallet ? 'DONE' : 'CONNECT'}
-                  </button>
-                </div>
               </div>
-
-              {/* Wallet multiplier note */}
-              <p className="text-rb-muted/30 text-[10px] font-label text-center mt-2">
-                Multiplier based on wallet age + volume. Older + active wallets earn more.
-              </p>
 
               {/* GOLD UNLOCKED badge */}
               {tasks.follow && tasks.discord && (
@@ -946,11 +844,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 <p className="text-4xl font-bold font-label tracking-tight text-white">
                   {displayTotal.toLocaleString()} <span className="text-rb-muted/40 text-base">pts</span>
                 </p>
-                {walletData && (
-                  <p className="text-xs text-brand-gold/60 mt-2">
-                    {walletData.multiplier}x wallet multiplier applied
-                  </p>
-                )}
               </motion.div>
 
               {/* Continue to VIP Card */}
