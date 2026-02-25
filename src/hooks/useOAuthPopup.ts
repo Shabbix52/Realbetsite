@@ -48,9 +48,13 @@ export function useOAuthPopup() {
   const firedRef = useRef(false);
 
   const fireCallback = useCallback((result: OAuthResult) => {
-    if (firedRef.current) return; // prevent double-fire
+    if (firedRef.current) {
+      console.log('[OAuth] fireCallback suppressed (already fired)');
+      return;
+    }
     firedRef.current = true;
     clearOAuthResult();
+    console.log(`[OAuth] ✅ Firing callback: provider=${result.provider} success=${result.success}`, result.user ? `user=${result.user.username}` : result.error || '');
     callbackRef.current?.(result);
     callbackRef.current = null;
   }, []);
@@ -59,7 +63,9 @@ export function useOAuthPopup() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data as OAuthResult;
+      console.log('[OAuth] postMessage received:', data);
       if (data && data.provider && typeof data.success === 'boolean') {
+        console.log('[OAuth] Valid postMessage, firing callback');
         fireCallback(data);
       }
     };
@@ -95,6 +101,7 @@ export function useOAuthPopup() {
       // Check localStorage on every tick
       const result = readOAuthResult();
       if (result) {
+        console.log('[OAuth] Found result in localStorage:', result.provider, result.success);
         clearInterval(timer);
         fireCallback(result);
         return;
@@ -104,7 +111,7 @@ export function useOAuthPopup() {
       if (!popupClosed && popup && popup.closed) {
         popupClosed = true;
         closedAt = Date.now();
-        // DON'T fire error yet — give localStorage 3 more seconds
+        console.log('[OAuth] Popup closed, waiting 3s for localStorage...');
       }
 
       // After popup closed, keep polling localStorage for 3s before giving up
@@ -113,8 +120,10 @@ export function useOAuthPopup() {
         // One final check
         const finalResult = readOAuthResult();
         if (finalResult) {
+          console.log('[OAuth] Final localStorage check succeeded');
           fireCallback(finalResult);
         } else {
+          console.warn('[OAuth] ❌ Giving up — no result in localStorage after popup closed');
           fireCallback({
             success: false,
             provider,

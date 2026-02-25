@@ -233,18 +233,24 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   }, [boxes]);
 
   const checkAllTasks = useCallback((updatedTasks: typeof tasks) => {
+    console.log('[Tasks] checkAllTasks called:', updatedTasks);
     if (updatedTasks.follow && updatedTasks.discord) {
       // Only unlock gold if it hasn't been opened / revealed yet
       let shouldNavigate = false;
       setBoxes(prev => {
         const gold = prev.find(b => b.type === 'gold');
+        console.log('[Tasks] Gold box state:', gold?.state);
         // Already unlocked or revealed — nothing to do
         if (!gold || gold.state === 'ready' || gold.state === 'revealed') return prev;
         shouldNavigate = true;
+        console.log('[Tasks] Unlocking gold box!');
         return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
       });
       // Navigate after the state update; the flag is set synchronously above
-      if (shouldNavigate) setTimeout(() => setSubScreen('gold-pre'), 800);
+      if (shouldNavigate) {
+        console.log('[Tasks] Navigating to gold-pre in 800ms');
+        setTimeout(() => setSubScreen('gold-pre'), 800);
+      }
     }
   }, []);
 
@@ -257,6 +263,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // Step 1: Authenticate with X
         setTaskLoading('follow');
         openOAuth('twitter', (result) => {
+          console.log('[Tasks] Twitter OAuth result:', result.success, result.user?.username, result.error);
           if (result.success) {
             setTwitterVerified(true);
             if (result.user?.id) setTwitterId(result.user.id);
@@ -335,6 +342,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // Step 1: Authenticate with Discord
         setTaskLoading('discord');
         openOAuth('discord', (result) => {
+          console.log('[Tasks] Discord OAuth result:', result.success, result.user?.username, result.error);
           if (result.success && result.user?.id) {
             setDiscordVerified(true);
             setDiscordUserId(result.user.id);

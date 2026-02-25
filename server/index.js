@@ -779,7 +779,9 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
 function resultRedirectUrl(success, provider, error = null, user = null) {
   const payload = { success, provider, error, user };
   const encoded = encodeURIComponent(JSON.stringify(payload));
-  return `${CLIENT_URL}/oauth-callback.html?data=${encoded}`;
+  const url = `${CLIENT_URL}/oauth-callback.html?data=${encoded}`;
+  console.log(`[OAuth Redirect] ${provider} success=${success} → ${url.substring(0, 120)}...`);
+  return url;
 }
 
 // ── Cleanup expired states every 5 minutes ──
