@@ -207,9 +207,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     setTimeout(() => {
       let points: number;
       if (box.type === 'gold') {
-        // Gold: deterministic from follower tier table
+        // Gold: random within the follower-tier range
         const tier = getTierForFollowers(followersCount);
-        points = tier.goldPoints;
+        points = randomInRange(tier.goldPointsMin, tier.goldPointsMax);
       } else {
         // Bronze/Silver: random within spec range
         const [min, max] = BOX_POINTS[box.type];

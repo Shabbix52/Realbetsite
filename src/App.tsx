@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import GlowEffects from './components/GlowEffects';
 import BloodStainOverlay from './components/BloodStainOverlay';
 import HeroScreen from './screens/HeroScreen';
