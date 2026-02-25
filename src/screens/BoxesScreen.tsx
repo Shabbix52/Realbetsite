@@ -234,27 +234,23 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     }, 1300);
   }, [boxes]);
 
-  const checkAllTasks = useCallback((updatedTasks: typeof tasks) => {
-    console.log('[Tasks] checkAllTasks called:', updatedTasks);
-    if (updatedTasks.follow && updatedTasks.discord) {
-      // Only unlock gold if it hasn't been opened / revealed yet
-      let shouldNavigate = false;
-      setBoxes(prev => {
-        const gold = prev.find(b => b.type === 'gold');
-        console.log('[Tasks] Gold box state:', gold?.state);
-        // Already unlocked or revealed — nothing to do
-        if (!gold || gold.state === 'ready' || gold.state === 'revealed') return prev;
-        shouldNavigate = true;
-        console.log('[Tasks] Unlocking gold box!');
-        return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
-      });
-      // Navigate after the state update; the flag is set synchronously above
-      if (shouldNavigate) {
-        console.log('[Tasks] Navigating to gold-pre in 800ms');
-        setTimeout(() => setSubScreen('gold-pre'), 800);
+  // Watch tasks state — when both are done, unlock gold and navigate
+  useEffect(() => {
+    if (!tasks.follow || !tasks.discord) return;
+    setBoxes(prev => {
+      const gold = prev.find(b => b.type === 'gold');
+      if (!gold || gold.state === 'ready' || gold.state === 'revealed') return prev;
+      console.log('[Tasks] useEffect: both tasks done — unlocking gold box');
+      return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
+    });
+    setSubScreen(prev => {
+      if (prev === 'tasks') {
+        console.log('[Tasks] useEffect: navigating to gold-pre');
+        return 'gold-pre';
       }
-    }
-  }, []);
+      return prev;
+    });
+  }, [tasks.follow, tasks.discord]);
 
   const handleTask = useCallback(async (task: 'follow' | 'discord') => {
     if (taskLoading) return;
@@ -306,13 +302,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     if (data.discordId) {
                       setDiscordVerified(true);
                       setDiscordUserId(data.discordId);
-                      // Both tasks are done — update without re-triggering gold unlock
-                      // (checkAllTasks guards against re-opening already-revealed gold)
-                      setTasks(p => {
-                        const updated = { ...p, discord: true };
-                        checkAllTasks(updated);
-                        return updated;
-                      });
+                      setTasks(p => ({ ...p, discord: true }));
                     }
                   })
                   .catch(() => {});
@@ -331,11 +321,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           setFollowCountdown(prev => {
             if (prev <= 1) {
               clearInterval(countdownTimer);
-              setTasks(p => {
-                const updated = { ...p, follow: true };
-                checkAllTasks(updated);
-                return updated;
-              });
+              setTasks(p => ({ ...p, follow: true }));
               return 0;
             }
             return prev - 1;
@@ -376,11 +362,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               const memberData = await memberRes.json();
               console.log('[Tasks] Discord membership check:', memberData);
               if (memberData.member) {
-                setTasks(p => {
-                  const updated = { ...p, discord: true };
-                  checkAllTasks(updated);
-                  return updated;
-                });
+                setTasks(p => ({ ...p, discord: true }));
               } else {
                 setDiscordError('not-member');
               }
@@ -399,11 +381,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           console.log('[Tasks] Discord membership re-check:', memberData);
           if (memberData.member) {
             setDiscordError(null);
-            setTasks(p => {
-              const updated = { ...p, discord: true };
-              checkAllTasks(updated);
-              return updated;
-            });
+            setTasks(p => ({ ...p, discord: true }));
           } else {
             setDiscordError('not-member');
           }
@@ -414,7 +392,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       }
       return;
     }
-  }, [taskLoading, twitterVerified, discordVerified, tasks, twitterId, openOAuth, discordUserId, onUserProfile, checkAllTasks]);
+  }, [taskLoading, twitterVerified, discordVerified, tasks, twitterId, openOAuth, discordUserId, onUserProfile]);
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
