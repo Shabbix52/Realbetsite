@@ -37,15 +37,19 @@ function clearOAuthResult() {
 
 /**
  * Robust OAuth popup hook.
- * Primary channel: localStorage (written by oauth-callback.html, polled here).
- * Backup channel: postMessage (same-origin only).
  * 
- * Key fix: when popup closes, we DON'T immediately fail.
- * Instead we wait 3 more seconds checking localStorage, then fail.
+ * Primary channel: postMessage (cross-origin safe — server sends inline HTML with postMessage).
+ * Backup channel: localStorage (written by oauth-callback.html iframe fallback).
+ * 
+ * IMPORTANT: popup.closed is unreliable when the popup navigates cross-origin
+ * (twitter.com, discord.com) — browsers may report closed=true while it's still open.
+ * So we DON'T check popup.closed at all for the first 30 seconds,
+ * and we ALWAYS accept postMessage even after "giving up."
  */
 export function useOAuthPopup() {
   const callbackRef = useRef<OAuthCallback | null>(null);
   const firedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fireCallback = useCallback((result: OAuthResult) => {
     if (firedRef.current) {
@@ -54,20 +58,28 @@ export function useOAuthPopup() {
     }
     firedRef.current = true;
     clearOAuthResult();
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     console.log(`[OAuth] ✅ Firing callback: provider=${result.provider} success=${result.success}`, result.user ? `user=${result.user.username}` : result.error || '');
     callbackRef.current?.(result);
     callbackRef.current = null;
   }, []);
 
-  // Listen for postMessage (works when popup is same-origin as parent)
+  // Listen for postMessage — this is the PRIMARY channel now.
+  // The server's inline callback page sends: window.opener.postMessage(data, '*')
+  // This works cross-origin since postMessage with '*' has no origin restriction.
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const data = event.data as OAuthResult;
-      console.log('[OAuth] postMessage received:', data);
-      if (data && data.provider && typeof data.success === 'boolean') {
-        console.log('[OAuth] Valid postMessage, firing callback');
-        fireCallback(data);
+      const data = event.data;
+      // Filter out noise (browser extensions, React devtools, etc.)
+      if (!data || typeof data !== 'object' || !data.provider || typeof data.success !== 'boolean') return;
+      console.log('[OAuth] postMessage received:', data.provider, data.success, data.user?.username || data.error || '');
+      // OVERRIDE firedRef — postMessage is authoritative. If we already
+      // fired a "window closed" error, undo it by accepting the real result.
+      if (firedRef.current) {
+        console.log('[OAuth] Late postMessage arrived — overriding previous failure');
+        firedRef.current = false;
       }
+      fireCallback(data as OAuthResult);
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
@@ -83,59 +95,82 @@ export function useOAuthPopup() {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
 
+    console.log(`[OAuth] Opening ${provider} popup...`);
     const popup = window.open(
       getApiUrl(`/auth/${provider}`),
       `${provider}-oauth`,
       `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`
     );
 
-    let popupClosed = false;
+    if (!popup) {
+      console.error('[OAuth] Popup was blocked by browser');
+      fireCallback({ success: false, provider, error: 'Popup blocked — please allow popups for this site' });
+      return;
+    }
+
+    const openedAt = Date.now();
+    // Grace period: don't check popup.closed for 30s (OAuth flow navigates
+    // through twitter.com/discord.com → cross-origin → closed reads as true)
+    const GRACE_PERIOD_MS = 30_000;
+    // After grace period, if popup is genuinely closed, wait 5 more seconds for postMessage
+    const POST_CLOSE_WAIT_MS = 5_000;
+
+    let genuinelyClosed = false;
     let closedAt = 0;
 
     const timer = setInterval(() => {
       if (firedRef.current) {
         clearInterval(timer);
+        timerRef.current = null;
         return;
       }
 
-      // Check localStorage on every tick
+      // Check localStorage on every tick (iframe fallback writes here)
       const result = readOAuthResult();
       if (result) {
         console.log('[OAuth] Found result in localStorage:', result.provider, result.success);
         clearInterval(timer);
+        timerRef.current = null;
         fireCallback(result);
         return;
       }
 
-      // Detect popup close
-      if (!popupClosed && popup && popup.closed) {
-        popupClosed = true;
-        closedAt = Date.now();
-        console.log('[OAuth] Popup closed, waiting 3s for localStorage...');
+      const elapsed = Date.now() - openedAt;
+
+      // Skip popup.closed checks during grace period
+      if (elapsed < GRACE_PERIOD_MS) return;
+
+      // Now safe to check popup.closed
+      try {
+        if (!genuinelyClosed && popup.closed) {
+          genuinelyClosed = true;
+          closedAt = Date.now();
+          console.log('[OAuth] Popup confirmed closed (after grace period), waiting for postMessage...');
+        }
+      } catch {
+        // Cross-origin access error — popup is still on another domain, not closed
       }
 
-      // After popup closed, keep polling localStorage for 3s before giving up
-      if (popupClosed && Date.now() - closedAt > 3000) {
+      // After confirmed close + wait period, give up
+      if (genuinelyClosed && Date.now() - closedAt > POST_CLOSE_WAIT_MS) {
         clearInterval(timer);
-        // One final check
+        timerRef.current = null;
         const finalResult = readOAuthResult();
         if (finalResult) {
           console.log('[OAuth] Final localStorage check succeeded');
           fireCallback(finalResult);
         } else {
-          console.warn('[OAuth] ❌ Giving up — no result in localStorage after popup closed');
-          fireCallback({
-            success: false,
-            provider,
-            error: 'Window closed by user',
-          });
+          console.warn('[OAuth] ❌ No result received — user likely closed the popup');
+          fireCallback({ success: false, provider, error: 'Window closed by user' });
         }
       }
-    }, 400);
+    }, 500);
 
-    // Safety: clear interval after 5 minutes regardless
+    timerRef.current = timer;
+
+    // Hard timeout: 5 minutes
     setTimeout(() => {
-      clearInterval(timer);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }, 5 * 60 * 1000);
   }, [fireCallback]);
 
