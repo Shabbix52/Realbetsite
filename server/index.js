@@ -25,7 +25,12 @@ const allowedOrigins = [
   /https:\/\/lovable-.*\.vercel\.app$/
 ];
 
-app.use(helmet({ contentSecurityPolicy: false }));
+// Disable COOP/COEP so postMessage + window.opener works cross-origin in popup flow
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({ 
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
