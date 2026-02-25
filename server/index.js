@@ -104,6 +104,10 @@ async function initDB() {
     // Add followers_count to existing tables if missing
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0`);
+    // Link Discord to the unified score row
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS discord_id VARCHAR(100)`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS discord_username VARCHAR(100)`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS scores_discord_id_idx ON scores (discord_id) WHERE discord_id IS NOT NULL`);
     console.log('✓ PostgreSQL connected & tables ready');
   } finally {
     client.release();
@@ -377,6 +381,31 @@ app.get('/auth/discord/check-member/:userId', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+//  DISCORD LINK — Attach a Discord account to an existing Twitter/score row
+// ─────────────────────────────────────────────
+
+app.post('/auth/discord/link', async (req, res) => {
+  const { twitterId, discordId, discordUsername } = req.body;
+  if (!twitterId || !discordId) return res.status(400).json({ error: 'twitterId and discordId required' });
+
+  try {
+    await pool.query(
+      `UPDATE scores SET discord_id = $2, discord_username = $3 WHERE twitter_id = $1`,
+      [twitterId, discordId, discordUsername || null]
+    );
+
+    // Invalidate the user's Redis score cache so next read includes discord info
+    await redis.del(`scores:${twitterId}`);
+
+    console.log(`Discord ${discordUsername || discordId} linked to Twitter ${twitterId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Discord link error:', err.message);
+    res.status(500).json({ error: 'Failed to link Discord account' });
+  }
+});
+
+// ─────────────────────────────────────────────
 //  SCORES — Save & load box results
 // ─────────────────────────────────────────────
 
@@ -465,6 +494,8 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
       twitterId: row.twitter_id,
       username: row.username,
       followersCount: row.followers_count || 0,
+      discordId: row.discord_id || null,
+      discordUsername: row.discord_username || null,
       boxes: [
         { type: 'bronze', state: 'revealed', points: row.bronze_points, tierName: row.bronze_tier },
         { type: 'silver', state: 'revealed', points: row.silver_points, tierName: row.silver_tier },
@@ -696,9 +727,16 @@ function csvSafe(val) {
 app.post('/admin/reset-db', requireAdmin, async (req, res) => {
   try {
     await pool.query('TRUNCATE TABLE scores, wallets, users RESTART IDENTITY CASCADE');
-    // Clear Redis leaderboard cache
+    // Clear Redis caches
     if (redis) {
-      try { await redis.del('leaderboard_cache'); } catch {}
+      try {
+        await redis.del('leaderboard:top100');
+        // Also clear any lingering score/user keys
+        const scoreKeys = await redis.keys('scores:*');
+        const userKeys = await redis.keys('user:*');
+        const allKeys = [...scoreKeys, ...userKeys];
+        if (allKeys.length > 0) await redis.del(allKeys);
+      } catch {}
     }
     console.log('[ADMIN] Database reset performed');
     res.json({ success: true, message: 'All tables truncated' });

@@ -234,44 +234,144 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   const checkAllTasks = useCallback((updatedTasks: typeof tasks) => {
     if (updatedTasks.follow && updatedTasks.discord) {
-      setBoxes(prev => prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' } : b));
-      setTimeout(() => setSubScreen('gold-pre'), 800);
+      // Only unlock gold if it hasn't been opened / revealed yet
+      let shouldNavigate = false;
+      setBoxes(prev => {
+        const gold = prev.find(b => b.type === 'gold');
+        // Already unlocked or revealed — nothing to do
+        if (!gold || gold.state === 'ready' || gold.state === 'revealed') return prev;
+        shouldNavigate = true;
+        return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
+      });
+      // Navigate after the state update; the flag is set synchronously above
+      if (shouldNavigate) setTimeout(() => setSubScreen('gold-pre'), 800);
     }
   }, []);
 
   const handleTask = useCallback(async (task: 'follow' | 'discord') => {
     if (taskLoading) return;
 
-    // ── Twitter / X ── (skip OAuth for now, just advance)
+    // ── Twitter / X ──
     if (task === 'follow') {
-      setTaskLoading('follow');
-      setTimeout(() => {
-        setTwitterVerified(true);
+      if (!twitterVerified) {
+        // Step 1: Authenticate with X
+        setTaskLoading('follow');
+        openOAuth('twitter', (result) => {
+          if (result.success) {
+            setTwitterVerified(true);
+            if (result.user?.id) setTwitterId(result.user.id);
+            if (result.user?.followersCount !== undefined) setFollowersCount(result.user.followersCount);
+            if (result.user?.username) {
+              setTwitterUsername(result.user.username);
+              const pfp = result.user.avatar
+                ? result.user.avatar.replace('_normal', '_400x400')
+                : `https://api.dicebear.com/7.x/avataaars/svg?seed=${result.user.username}`;
+              onUserProfile(result.user.id || '', result.user.username, pfp);
+
+              // Load existing scores + Discord linkage from DB
+              if (result.user.id) {
+                fetch(getApiUrl(`/auth/scores/${result.user.id}`))
+                  .then(r => r.json())
+                  .then(data => {
+                    if (!data) return;
+
+                    // Restore boxes
+                    if (data.boxes) {
+                      const hasPoints = data.boxes.some((b: any) => b.points > 0);
+                      if (hasPoints) {
+                        setBoxes(data.boxes);
+                        saveBoxes(data.boxes);
+                        // Derive correct screen from loaded boxes
+                        const derived = deriveSubScreen(data.boxes);
+                        setSubScreen(derived);
+                        // If gold was already revealed, mark journey as done
+                        const goldDone = data.boxes.find((b: any) => b.type === 'gold')?.state === 'revealed';
+                        if (goldDone) setAllDone(true);
+                      }
+                    }
+
+                    // Restore followers count
+                    if (data.followersCount) setFollowersCount(data.followersCount);
+
+                    // Restore Discord linkage if previously connected
+                    if (data.discordId) {
+                      setDiscordVerified(true);
+                      setDiscordUserId(data.discordId);
+                      // Both tasks are done — update without re-triggering gold unlock
+                      // (checkAllTasks guards against re-opening already-revealed gold)
+                      setTasks(p => {
+                        const updated = { ...p, discord: true };
+                        checkAllTasks(updated);
+                        return updated;
+                      });
+                    }
+                  })
+                  .catch(() => {});
+              }
+            }
+            // Mark task done immediately after successful OAuth
+            setTasks(p => {
+              const updated = { ...p, follow: true };
+              checkAllTasks(updated);
+              return updated;
+            });
+          }
+          setTaskLoading(null);
+        });
+      } else if (!tasks.follow) {
+        // Already verified — just mark done
         setTasks(p => {
           const updated = { ...p, follow: true };
           checkAllTasks(updated);
           return updated;
         });
-        setTaskLoading(null);
-      }, 600);
+      }
       return;
     }
 
-    // ── Discord ── (skip OAuth for now, just advance)
+    // ── Discord ──
     if (task === 'discord') {
-      setTaskLoading('discord');
-      setTimeout(() => {
-        setDiscordVerified(true);
+      if (!discordVerified) {
+        // Step 1: Authenticate with Discord
+        setTaskLoading('discord');
+        openOAuth('discord', (result) => {
+          if (result.success && result.user?.id) {
+            setDiscordVerified(true);
+            setDiscordUserId(result.user.id);
+
+            // Persist the Discord ↔ Twitter link in the database
+            if (twitterId) {
+              fetch(getApiUrl('/auth/discord/link'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  twitterId,
+                  discordId: result.user.id,
+                  discordUsername: result.user.username || result.user.globalName || null,
+                }),
+              }).catch(() => {});
+            }
+
+            // Mark task done immediately after successful OAuth
+            setTasks(p => {
+              const updated = { ...p, discord: true };
+              checkAllTasks(updated);
+              return updated;
+            });
+          }
+          setTaskLoading(null);
+        });
+      } else if (!tasks.discord) {
+        // Already verified — just mark done
         setTasks(p => {
           const updated = { ...p, discord: true };
           checkAllTasks(updated);
           return updated;
         });
-        setTaskLoading(null);
-      }, 600);
+      }
       return;
     }
-  }, [taskLoading, checkAllTasks]);
+  }, [taskLoading, twitterVerified, discordVerified, tasks, twitterId, openOAuth, discordUserId, onUserProfile, checkAllTasks]);
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
