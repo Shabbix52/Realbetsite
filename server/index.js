@@ -181,12 +181,12 @@ app.get('/auth/twitter/callback', async (req, res) => {
   const { code, state } = req.query;
 
   if (!code || !state) {
-    return res.redirect(resultRedirectUrl(false, 'twitter', 'Missing code or state'));
+    return sendResultPage(res, false, 'twitter', 'Missing code or state');
   }
 
   const stored = oauthStore.get(state);
   if (!stored) {
-    return res.redirect(resultRedirectUrl(false, 'twitter', 'Invalid or expired state'));
+    return sendResultPage(res, false, 'twitter', 'Invalid or expired state');
   }
   oauthStore.delete(state);
 
@@ -213,7 +213,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Twitter token error:', err);
-      return res.redirect(resultRedirectUrl(false, 'twitter', 'Token exchange failed'));
+      return sendResultPage(res, false, 'twitter', 'Token exchange failed');
     }
 
     const tokenData = await tokenRes.json();
@@ -239,18 +239,16 @@ app.get('/auth/twitter/callback', async (req, res) => {
     await redis.setEx(`user:twitter:${user.id}`, 86400, JSON.stringify({ dbId, username: user.username, followersCount }));
     console.log(`Twitter user @${user.username} (${followersCount} followers) saved (db id: ${dbId})`);
 
-    res.redirect(
-      resultRedirectUrl(true, 'twitter', null, {
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        avatar: user.profile_image_url,
-        followersCount,
-      })
-    );
+    sendResultPage(res, true, 'twitter', null, {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      avatar: user.profile_image_url,
+      followersCount,
+    });
   } catch (err) {
     console.error('Twitter OAuth error:', err);
-    res.redirect(resultRedirectUrl(false, 'twitter', 'OAuth flow failed'));
+    sendResultPage(res, false, 'twitter', 'OAuth flow failed');
   }
 });
 
@@ -280,12 +278,12 @@ app.get('/auth/discord/callback', async (req, res) => {
   const { code, state } = req.query;
 
   if (!code || !state) {
-    return res.redirect(resultRedirectUrl(false, 'discord', 'Missing code or state'));
+    return sendResultPage(res, false, 'discord', 'Missing code or state');
   }
 
   const stored = oauthStore.get(state);
   if (!stored) {
-    return res.redirect(resultRedirectUrl(false, 'discord', 'Invalid or expired state'));
+    return sendResultPage(res, false, 'discord', 'Invalid or expired state');
   }
   oauthStore.delete(state);
 
@@ -306,7 +304,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Discord token error:', err);
-      return res.redirect(resultRedirectUrl(false, 'discord', 'Token exchange failed'));
+      return sendResultPage(res, false, 'discord', 'Token exchange failed');
     }
 
     const tokenData = await tokenRes.json();
@@ -333,17 +331,15 @@ app.get('/auth/discord/callback', async (req, res) => {
     await redis.setEx(`user:discord:${userData.id}`, 86400, JSON.stringify({ dbId, username: userData.username }));
     console.log(`Discord user ${userData.username} saved (db id: ${dbId})`);
 
-    res.redirect(
-      resultRedirectUrl(true, 'discord', null, {
-        id: userData.id,
-        username: userData.username,
-        globalName: userData.global_name,
-        avatar: avatarUrl,
-      })
-    );
+    sendResultPage(res, true, 'discord', null, {
+      id: userData.id,
+      username: userData.username,
+      globalName: userData.global_name,
+      avatar: avatarUrl,
+    });
   } catch (err) {
     console.error('Discord OAuth error:', err);
-    res.redirect(resultRedirectUrl(false, 'discord', 'OAuth flow failed'));
+    sendResultPage(res, false, 'discord', 'OAuth flow failed');
   }
 });
 
@@ -776,12 +772,57 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
 //  Result page — sends postMessage to opener & closes popup
 // ─────────────────────────────────────────────
 
-function resultRedirectUrl(success, provider, error = null, user = null) {
+function sendResultPage(res, success, provider, error = null, user = null) {
   const payload = { success, provider, error, user };
-  const encoded = encodeURIComponent(JSON.stringify(payload));
-  const url = `${CLIENT_URL}/oauth-callback.html?data=${encoded}`;
-  console.log(`[OAuth Redirect] ${provider} success=${success} → ${url.substring(0, 120)}...`);
-  return url;
+  const json = JSON.stringify(payload);
+  console.log(`[OAuth Result] ${provider} success=${success} user=${user?.username || 'n/a'} error=${error || 'none'}`);
+
+  // Serve inline HTML that sends postMessage to opener (cross-origin safe)
+  // Falls back to redirect to CLIENT_URL callback page if opener is missing
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html>
+<html>
+<head><title>Authenticating...</title></head>
+<body style="background:#0D0D0D;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+  <div style="text-align:center">
+    <p id="msg">${success ? 'Connected!' : 'Connection failed'}</p>
+    <p style="opacity:0.5;font-size:14px">This window will close automatically...</p>
+  </div>
+  <script>
+    var data = ${json};
+    console.log('[OAuthCallback] Inline page loaded, data:', data);
+
+    var sent = false;
+
+    // Channel 1: postMessage to opener (works cross-origin)
+    if (window.opener) {
+      try {
+        window.opener.postMessage(data, '*');
+        sent = true;
+        console.log('[OAuthCallback] postMessage sent to opener');
+      } catch(e) {
+        console.error('[OAuthCallback] postMessage failed:', e);
+      }
+    } else {
+      console.warn('[OAuthCallback] No window.opener');
+    }
+
+    // Channel 2: Also try localStorage on CLIENT origin via hidden iframe
+    // (fallback if postMessage is blocked)
+    try {
+      var iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = '${CLIENT_URL}/oauth-callback.html?data=' + encodeURIComponent(JSON.stringify(data));
+      document.body.appendChild(iframe);
+      console.log('[OAuthCallback] Fallback iframe created');
+    } catch(e) {
+      console.log('[OAuthCallback] Iframe fallback failed:', e);
+    }
+
+    setTimeout(function() { window.close(); }, 2500);
+  </script>
+</body>
+</html>`);
 }
 
 // ── Cleanup expired states every 5 minutes ──
