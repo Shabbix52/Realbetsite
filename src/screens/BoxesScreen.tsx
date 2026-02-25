@@ -137,6 +137,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const [discordVerified, setDiscordVerified] = useState(() => savedAuth?.discordVerified ?? false);
   const [discordUserId, setDiscordUserId] = useState<string | null>(() => savedAuth?.discordUserId ?? null);
   const [taskLoading, setTaskLoading] = useState<string | null>(null);
+  const [followCountdown, setFollowCountdown] = useState<number>(0);
+  const [discordError, setDiscordError] = useState<string | null>(null);
   const [allDone, setAllDone] = useState(() => {
     const gold = initialBoxes.find(b => b.type === 'gold');
     return gold?.state === 'revealed';
@@ -316,32 +318,40 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                   .catch(() => {});
               }
             }
-            // Mark task done immediately after successful OAuth
-            setTasks(p => {
-              const updated = { ...p, follow: true };
-              checkAllTasks(updated);
-              return updated;
-            });
+            // After OAuth success: DON'T mark done yet. Open follow intent + countdown.
           }
           setTaskLoading(null);
         });
       } else if (!tasks.follow) {
-        // Already verified — just mark done
-        setTasks(p => {
-          const updated = { ...p, follow: true };
-          checkAllTasks(updated);
-          return updated;
-        });
+        // Already verified — Step 2: Open follow intent and start countdown
+        const targetUsername = 'Realbet'; // matches TWITTER_TARGET_USERNAME
+        window.open(`https://twitter.com/intent/follow?screen_name=${targetUsername}`, '_blank');
+        setFollowCountdown(10);
+        const countdownTimer = setInterval(() => {
+          setFollowCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownTimer);
+              setTasks(p => {
+                const updated = { ...p, follow: true };
+                checkAllTasks(updated);
+                return updated;
+              });
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
       }
       return;
     }
 
     // ── Discord ──
     if (task === 'discord') {
+      setDiscordError(null);
       if (!discordVerified) {
         // Step 1: Authenticate with Discord
         setTaskLoading('discord');
-        openOAuth('discord', (result) => {
+        openOAuth('discord', async (result) => {
           console.log('[Tasks] Discord OAuth result:', result.success, result.user?.username, result.error);
           if (result.success && result.user?.id) {
             setDiscordVerified(true);
@@ -360,22 +370,47 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               }).catch(() => {});
             }
 
-            // Mark task done immediately after successful OAuth
+            // Step 2: Check if user is actually in the Discord server
+            try {
+              const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${result.user.id}`));
+              const memberData = await memberRes.json();
+              console.log('[Tasks] Discord membership check:', memberData);
+              if (memberData.member) {
+                setTasks(p => {
+                  const updated = { ...p, discord: true };
+                  checkAllTasks(updated);
+                  return updated;
+                });
+              } else {
+                setDiscordError('not-member');
+              }
+            } catch {
+              setDiscordError('check-failed');
+            }
+          }
+          setTaskLoading(null);
+        });
+      } else if (!tasks.discord && discordUserId) {
+        // Already verified — re-check membership
+        setTaskLoading('discord');
+        try {
+          const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${discordUserId}`));
+          const memberData = await memberRes.json();
+          console.log('[Tasks] Discord membership re-check:', memberData);
+          if (memberData.member) {
+            setDiscordError(null);
             setTasks(p => {
               const updated = { ...p, discord: true };
               checkAllTasks(updated);
               return updated;
             });
+          } else {
+            setDiscordError('not-member');
           }
-          setTaskLoading(null);
-        });
-      } else if (!tasks.discord) {
-        // Already verified — just mark done
-        setTasks(p => {
-          const updated = { ...p, discord: true };
-          checkAllTasks(updated);
-          return updated;
-        });
+        } catch {
+          setDiscordError('check-failed');
+        }
+        setTaskLoading(null);
       }
       return;
     }
@@ -653,31 +688,39 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     </div>
                     <div>
                       <p className="text-sm font-bold tracking-wider text-white/90">
-                        {twitterVerified && !tasks.follow ? 'Follow @RealBet' : 'Follow @RealBet'}
+                        {!twitterVerified ? 'Connect & Follow @RealBet' : 'Follow @RealBet'}
                       </p>
                       <p className="text-xs text-brand-gold/60 font-label">+500 bonus points</p>
-                      {twitterVerified && !tasks.follow && (
-                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">✓ Verified — now follow to continue</p>
+                      {twitterVerified && !tasks.follow && followCountdown === 0 && (
+                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Connected — tap Follow to continue</p>
+                      )}
+                      {followCountdown > 0 && (
+                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Verifying... {followCountdown}s</p>
                       )}
                     </div>
                   </div>
                   <button
-                    onClick={() => !tasks.follow && handleTask('follow')}
-                    disabled={tasks.follow || taskLoading === 'follow'}
+                    onClick={() => !tasks.follow && followCountdown === 0 && handleTask('follow')}
+                    disabled={tasks.follow || taskLoading === 'follow' || followCountdown > 0}
                     className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all ${
                       tasks.follow
                         ? 'bg-green-500/20 text-green-400 cursor-default'
+                        : followCountdown > 0
+                        ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 cursor-wait'
                         : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer'
                     } ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
                   >
                     {taskLoading === 'follow'
                       ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      : tasks.follow ? 'DONE' : 'FOLLOW'}
+                      : tasks.follow ? 'DONE'
+                      : followCountdown > 0 ? `${followCountdown}s`
+                      : twitterVerified ? 'FOLLOW'
+                      : 'CONNECT'}
                   </button>
                 </div>
 
                 {/* Join Discord */}
-                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.discord ? 'border-green-500/20' : ''}`}>
+                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.discord ? 'border-green-500/20' : discordError ? 'border-red-500/20' : ''}`}>
                   <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                       {tasks.discord ? (
@@ -691,8 +734,24 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     <div>
                       <p className="text-sm font-bold tracking-wider text-white/90">Join Discord</p>
                       <p className="text-xs text-brand-gold/60 font-label">+500 bonus points</p>
-                      {discordVerified && !tasks.discord && (
-                        <p className="text-xs text-purple-400/60 mt-0.5">✓ Verified — now join to continue</p>
+                      {discordVerified && !tasks.discord && !discordError && (
+                        <p className="text-xs text-purple-400/60 mt-0.5">Connected — checking membership...</p>
+                      )}
+                      {discordError === 'not-member' && (
+                        <div className="mt-1">
+                          <p className="text-xs text-red-400/80">You're not in the server yet!</p>
+                          <a
+                            href="https://discord.gg/realbet"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-purple-400 underline hover:text-purple-300"
+                          >
+                            Join the Discord server →
+                          </a>
+                        </div>
+                      )}
+                      {discordError === 'check-failed' && (
+                        <p className="text-xs text-red-400/80 mt-0.5">Check failed — try again</p>
                       )}
                     </div>
                   </div>
@@ -707,7 +766,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                   >
                     {taskLoading === 'discord'
                       ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      : tasks.discord ? 'DONE' : 'JOIN'}
+                      : tasks.discord ? 'DONE'
+                      : discordError === 'not-member' ? 'VERIFY'
+                      : discordVerified ? 'VERIFY'
+                      : 'CONNECT'}
                   </button>
                 </div>
               </div>
