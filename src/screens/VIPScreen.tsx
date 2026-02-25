@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
@@ -129,7 +129,7 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
           />
 
           {/* SEASON 1 label */}
-          <p className="absolute top-8 sm:top-11 left-4 sm:left-6 font-label text-[7px] sm:text-[8px] tracking-[0.3em] text-rb-muted/40">
+          <p className="absolute top-8 sm:top-11 left-4 sm:left-6 font-label text-[7px] sm:text-[8px] tracking-[0.3em] text-white/50">
             SEASON 1
           </p>
 
@@ -178,7 +178,7 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-brand-gold/50 text-lg hidden sm:block">◆</div>
 
           {/* Bottom-right: Tagline */}
-          <p className="absolute bottom-2 sm:bottom-3 right-3 sm:right-5 text-[7px] sm:text-[8px] text-rb-muted/20 italic font-label tracking-wider">
+          <p className="absolute bottom-2 sm:bottom-3 right-3 sm:right-5 text-[7px] sm:text-[8px] text-white/25 italic font-label tracking-wider">
             The House remembers.
           </p>
         </div>
@@ -249,12 +249,6 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
       exit={{ opacity: 0 }}
       className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10 overflow-y-auto"
     >
-      {/* Step indicator */}
-      <div className="fixed top-4 right-4 z-50">
-        <span className="font-label text-[10px] tracking-[0.15em] text-rb-muted/40">
-          Step 6/7 • Rewards
-        </span>
-      </div>
 
       <motion.div
         variants={containerVariants}
@@ -264,9 +258,6 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
       >
         {/* ── Big Allocation Headline (optics layer) ── */}
         <motion.div variants={itemVariants} className="text-center mb-5 sm:mb-8">
-          <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase mb-2 sm:mb-3">
-            Your Season 1 Rewards
-          </p>
           <h2 className="font-display text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight uppercase mb-1 sm:mb-2">
             Season 1{' '}
             <span className="text-brand-red">Allocation</span>
@@ -303,7 +294,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             <div className="glass-panel rounded-2xl p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4">
                 <div>
-                  <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-1 sm:mb-2">
+                  <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-1 sm:mb-2">
                     Power Score
                   </p>
                   <p className="text-3xl sm:text-4xl font-bold font-label text-white">
@@ -311,7 +302,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                   </p>
                 </div>
                 <div className="sm:text-right">
-                  <p className="font-label text-[10px] tracking-wider text-rb-muted/40 uppercase">
+                  <p className="font-label text-[10px] tracking-wider text-white/50 uppercase">
                     Total Allocation
                   </p>
                   <p className="text-brand-gold text-xl sm:text-2xl font-bold font-label">
@@ -319,7 +310,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                   </p>
                 </div>
               </div>
-              <p className="text-rb-muted/30 text-[10px] font-label mt-3">
+              <p className="text-white/40 text-[10px] font-label mt-3">
                 {tier.label} follower tier • Rewards capped per tier for operator safety.
               </p>
             </div>
@@ -334,7 +325,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                   transition={{ duration: 0.5 }}
                   className="space-y-3 overflow-hidden"
                 >
-                  <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase">
+                  <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase">
                     Reward Breakdown
                   </p>
 
@@ -346,7 +337,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-white/90">Wager Bonus</p>
-                        <p className="text-[10px] text-rb-muted/40 font-label">{split.freePlay.wager}x playthrough</p>
+                        <p className="text-[10px] text-white/50 font-label">{split.freePlay.wager}x playthrough</p>
                       </div>
                     </div>
                     <p className="text-green-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
@@ -362,7 +353,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-white/90">Deposit Match</p>
-                        <p className="text-[10px] text-rb-muted/40 font-label">{split.depositMatch.wager}x playthrough</p>
+                        <p className="text-[10px] text-white/50 font-label">{split.depositMatch.wager}x playthrough</p>
                       </div>
                     </div>
                     <p className="text-blue-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
@@ -378,7 +369,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-white/90">REAL Points</p>
-                        <p className="text-[10px] text-rb-muted/40 font-label truncate">Leaderboard → Airdrop</p>
+                        <p className="text-[10px] text-white/50 font-label truncate">Leaderboard → Airdrop</p>
                       </div>
                     </div>
                     <p className="text-brand-gold text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
@@ -388,7 +379,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
 
                   {/* Total Cash Allocation */}
                   <div className="text-center pt-2">
-                    <p className="text-rb-muted/30 text-[10px] font-label">
+                    <p className="text-white/40 text-[10px] font-label">
                       Max Cash Allocation: <span className="text-white/60">${split.totalCash.toLocaleString()}</span> • REAL Points: no cap
                     </p>
                   </div>
@@ -406,7 +397,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                 ].map((perk) => (
                   <div key={perk} className="flex items-center gap-3">
                     <span className="text-brand-gold/50 text-xs">→</span>
-                    <span className="text-rb-muted/60 text-sm">{perk}</span>
+                    <span className="text-white/70 text-sm">{perk}</span>
                   </div>
                 ))}
               </div>
@@ -435,7 +426,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                 className={`w-full flex items-center justify-center gap-2 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 ${
                   shared
                     ? 'border border-brand-red/40 text-[#F0F1F7] shadow-[0_0_50px_rgba(255,59,48,0.15)] hover:shadow-[0_0_80px_rgba(255,59,48,0.3)]'
-                    : 'glass-panel text-rb-muted/30 cursor-not-allowed'
+                    : 'glass-panel text-white/40 cursor-not-allowed'
                 }`}
                 style={shared ? {
                   background: 'linear-gradient(to bottom, rgba(255,59,48,0.9), #8B1A1A)',
@@ -446,12 +437,12 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               </button>
 
               {!shared && (
-                <p className="text-center text-[10px] text-rb-muted/25 tracking-widest font-label">
+                <p className="text-center text-[10px] text-white/30 tracking-widest font-label">
                   Share on X to reveal your full reward breakdown
                 </p>
               )}
               {shared && (
-                <p className="text-center text-[10px] text-rb-muted/40 tracking-widest font-label">
+                <p className="text-center text-[10px] text-white/50 tracking-widest font-label">
                   Free Play: {split.freePlay.wager}x playthrough • Deposit Match: {split.depositMatch.wager}x playthrough
                 </p>
               )}
@@ -474,14 +465,14 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             {/* Payment logos */}
             <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap pt-2">
               {['Apple Pay', 'Visa', 'Mastercard', 'Google Pay'].map((name) => (
-                <span key={name} className="text-[10px] text-rb-muted/25 tracking-wider font-label uppercase">
+                <span key={name} className="text-[10px] text-white/30 tracking-wider font-label uppercase">
                   {name}
                 </span>
               ))}
             </div>
 
             {/* Tagline */}
-            <p className="text-center text-rb-muted/15 text-xs italic pt-2">
+            <p className="text-center text-white/20 text-xs italic pt-2">
               See you at the tables.
             </p>
           </motion.div>

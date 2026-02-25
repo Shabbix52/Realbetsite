@@ -22,7 +22,7 @@ export default {
         'blood-deep': '#4D0000',
         'blood-glow': '#BF1220',
         rb: {
-          muted: '#808A99',
+          muted: '#F2F2F2',
           border: '#333840',
         },
         tier: {

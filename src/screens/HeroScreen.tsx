@@ -23,8 +23,8 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
         initial={{ opacity: 0, x: 60 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 1, delay: 0.4 }}
-        className="absolute right-[-8%] md:right-[-4%] lg:right-[0%] bottom-0 z-[8] pointer-events-none hidden md:block"
-        style={{ width: 'clamp(500px, 55vw, 950px)' }}
+        className="absolute right-[-12%] md:right-[-8%] lg:right-[-4%] bottom-0 z-[8] pointer-events-none hidden md:block"
+        style={{ width: 'clamp(760px, 78vw, 1400px)' }}
       >
         {/* Hero image — filters handle tinting; drop-shadow follows the alpha silhouette */}
         <img

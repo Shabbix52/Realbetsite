@@ -78,7 +78,7 @@ function App() {
   }, []);
 
   return (
-    <div className="relative h-screen overflow-hidden grain-overlay">
+    <div className="relative min-h-screen h-screen overflow-y-auto overflow-x-hidden grain-overlay">
       <GlowEffects />
       <BloodStainOverlay />
 

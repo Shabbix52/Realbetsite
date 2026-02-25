@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+﻿import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
@@ -39,6 +39,18 @@ const BOX_TITLE_COLORS: Record<BoxType, string> = {
   bronze: 'text-[#C8956C]',
   silver: 'text-[#9CA0A8]',
   gold: 'text-[#F6C34A]',
+};
+
+const BOX_BORDER_COLORS: Record<BoxType, string> = {
+  bronze: 'rgba(200,149,108,0.5)',
+  silver: 'rgba(156,160,168,0.5)',
+  gold: 'rgba(246,195,74,0.5)',
+};
+
+const BOX_GLOW_COLORS: Record<BoxType, string> = {
+  bronze: 'rgba(200,149,108,0.18)',
+  silver: 'rgba(156,160,168,0.15)',
+  gold: 'rgba(246,195,74,0.22)',
 };
 
 const STEP_LABELS: Record<SubScreen, string> = {
@@ -445,17 +457,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   return (
     <>
-      {/* Step indicator */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="fixed top-4 right-4 z-50"
-      >
-        <span className="font-label text-[10px] tracking-[0.15em] text-rb-muted/40">
-          Step {stepNumber}/7 • {STEP_LABELS[subScreen]}
-        </span>
-      </motion.div>
-
       <AnimatePresence mode="wait">
         {/* ═══ BOXES SCREEN ═══ */}
         {subScreen === 'boxes' && (
@@ -469,7 +470,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           >
             <motion.div className="w-full max-w-3xl mx-auto">
               {/* Label */}
-              <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 mb-2 sm:mb-3">
+              <p className="font-label text-[10px] tracking-[0.25em] text-white/50 mb-2 sm:mb-3">
                 // LOOT DROP
               </p>
 
@@ -480,7 +481,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </h2>
 
               {/* Description */}
-              <p className="text-rb-muted/60 text-sm mb-6 sm:mb-10 max-w-md">
+              <p className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md">
                 Each box reveals points. Points convert to Season 1 credit.
               </p>
 
@@ -495,23 +496,25 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     whileHover={box.state === 'ready' ? { y: -8, scale: 1.02 } : {}}
                     whileTap={box.state === 'ready' ? { scale: 0.97 } : {}}
                     onClick={() => box.state === 'ready' ? openBox(i) : undefined}
-                    className={`relative glass-panel rounded-2xl p-5 sm:p-8 text-center min-h-[180px] sm:min-h-[240px] flex flex-col items-center justify-center transition-all duration-500 ${
+                    className={`relative rounded-2xl p-5 sm:p-8 text-center min-h-[180px] sm:min-h-[240px] flex flex-col items-center justify-center transition-all duration-500 backdrop-blur-md ${
                       box.state === 'ready'
-                        ? 'cursor-pointer hover:border-white/20'
+                        ? 'cursor-pointer'
                         : box.state === 'locked'
                         ? 'cursor-not-allowed opacity-50'
                         : ''
                     } ${box.state === 'opening' ? 'animate-shake' : ''}`}
                     style={{
+                      background: 'rgba(10,11,15,0.75)',
+                      border: `1px solid ${box.state === 'locked' ? 'rgba(51,56,64,0.4)' : BOX_BORDER_COLORS[box.type]}`,
                       boxShadow: box.state === 'ready' || box.state === 'revealed'
-                        ? '0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03)'
-                        : 'none',
+                        ? `0 20px 60px rgba(0,0,0,0.5), 0 0 40px ${BOX_GLOW_COLORS[box.type]}, inset 0 1px 0 rgba(255,255,255,0.04)`
+                        : '0 8px 24px rgba(0,0,0,0.3)',
                     }}
                   >
-                    {/* Color overlay at 8% opacity */}
+                    {/* Color overlay */}
                     <div
-                      className="absolute inset-0 rounded-2xl opacity-[0.08]"
-                      style={{ background: BOX_GRADIENTS[box.type] }}
+                      className="absolute inset-0 rounded-2xl"
+                      style={{ background: BOX_GRADIENTS[box.type], opacity: box.state === 'locked' ? 0.06 : 0.18 }}
                     />
 
                     {/* Flash overlay for opening */}
@@ -522,7 +525,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     {/* Icon */}
                     <div className="mb-3 sm:mb-4 relative z-[1]">
                       {box.state === 'locked' ? (
-                        <LockIcon className="w-10 h-10 sm:w-12 sm:h-12 text-rb-muted/30" />
+                        <LockIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white/40" />
                       ) : box.state === 'opening' ? (
                         <PackageIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white animate-bounce" />
                       ) : box.state === 'revealed' ? (
@@ -546,15 +549,15 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     {/* State-specific content */}
                     {box.state === 'locked' && (
                       <div className="flex items-center gap-1.5 relative z-[1]">
-                        <LockIcon className="w-3 h-3 text-rb-muted/30" />
-                        <span className="font-label text-[10px] text-rb-muted/30 tracking-wider">
+                        <LockIcon className="w-3 h-3 text-white/40" />
+                        <span className="font-label text-[10px] text-white/40 tracking-wider">
                           Open Bronze first
                         </span>
                       </div>
                     )}
 
                     {box.state === 'ready' && (
-                      <p className="font-label text-[10px] text-rb-muted/40 tracking-widest uppercase animate-pulse relative z-[1]">Tap to open</p>
+                      <p className="font-label text-[10px] text-white/50 tracking-widest uppercase animate-pulse relative z-[1]">Tap to open</p>
                     )}
 
                     {box.state === 'revealed' && (
@@ -567,7 +570,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                         <p className="text-3xl font-bold font-label text-white">
                           +{box.points.toLocaleString()}
                         </p>
-                        <p className="text-xs text-rb-muted/40 font-label">points</p>
+                        <p className="text-xs text-white/50 font-label">points</p>
                       </motion.div>
                     )}
                   </motion.div>
@@ -583,11 +586,11 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     exit={{ opacity: 0 }}
                     className="text-center"
                   >
-                    <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-1">
+                    <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-1">
                       Current Total
                     </p>
                     <p className="text-3xl font-bold font-label tracking-tight text-white">
-                      {displayTotal.toLocaleString()} <span className="text-rb-muted/40 text-base">pts</span>
+                      {displayTotal.toLocaleString()} <span className="text-white/50 text-base">pts</span>
                     </p>
                   </motion.div>
                 )}
@@ -598,7 +601,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-center text-rb-muted/40 text-xs font-label tracking-wider mt-6"
+                  className="text-center text-white/50 text-xs font-label tracking-wider mt-6"
                 >
                   Unlocking next phase...
                 </motion.p>
@@ -619,7 +622,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           >
             <motion.div className="w-full max-w-lg mx-auto">
               {/* Label */}
-              <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 mb-2 sm:mb-3">
+              <p className="font-label text-[10px] tracking-[0.25em] text-white/50 mb-2 sm:mb-3">
                 // THE FINAL BOX
               </p>
 
@@ -630,15 +633,15 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </h2>
 
               {/* Description */}
-              <p className="text-rb-muted/60 text-sm mb-6 sm:mb-10">
+              <p className="text-white/70 text-sm mb-6 sm:mb-10">
                 Complete these steps to unlock your biggest reward.
               </p>
 
               {/* Progress bar */}
               <div className="mb-5 sm:mb-8">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-label text-[10px] tracking-wider text-rb-muted/50">Gold Box Unlock</span>
-                  <span className="font-label text-[10px] tracking-wider text-rb-muted/50">{completedTasks}/2 completed</span>
+                  <span className="font-label text-[10px] tracking-wider text-white/60">Gold Box Unlock</span>
+                  <span className="font-label text-[10px] tracking-wider text-white/60">{completedTasks}/2 completed</span>
                 </div>
                 <div className="h-1 bg-rb-border rounded-full overflow-hidden">
                   <motion.div
@@ -803,7 +806,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </h2>
 
               {/* Description */}
-              <p className="text-rb-muted/60 text-sm mb-8 sm:mb-12">
+              <p className="text-white/70 text-sm mb-8 sm:mb-12">
                 Your biggest reward awaits. The House saved the best for last.
               </p>
 
@@ -815,14 +818,16 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 whileHover={{ y: -10, scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => openBox(2)}
-                className="relative w-44 h-44 sm:w-56 sm:h-56 md:w-72 md:h-72 mx-auto rounded-2xl cursor-pointer glass-panel overflow-hidden"
+                className="relative w-44 h-44 sm:w-56 sm:h-56 md:w-72 md:h-72 mx-auto rounded-2xl cursor-pointer overflow-hidden backdrop-blur-md"
                 style={{
-                  boxShadow: '0 0 60px rgba(246,196,74,0.1), 0 30px 60px rgba(0,0,0,0.4)',
+                  background: 'rgba(10,11,15,0.75)',
+                  border: '1px solid rgba(246,195,74,0.55)',
+                  boxShadow: '0 0 80px rgba(246,196,74,0.25), 0 30px 60px rgba(0,0,0,0.4)',
                 }}
               >
                 {/* Gold gradient overlay */}
                 <div
-                  className="absolute inset-0 opacity-20"
+                  className="absolute inset-0 opacity-[0.28]"
                   style={{ background: BOX_GRADIENTS.gold }}
                 />
 
@@ -858,18 +863,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             className="min-h-screen flex flex-col items-center justify-center relative px-4 sm:px-6 z-10 overflow-y-auto py-16 sm:py-0"
           >
             <motion.div className="max-w-lg mx-auto text-center">
-              {/* Sparkle icon */}
-              <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 100, damping: 12 }}
-                className="mb-4 sm:mb-6"
-              >
-                <svg className="w-10 h-10 sm:w-14 sm:h-14 text-brand-gold mx-auto" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2l2.09 6.26L20.18 10l-4.64 3.18L17.09 20 12 16.27 6.91 20l1.55-6.82L3.82 10l6.09-1.74L12 2z" />
-                  <circle cx="19" cy="5" r="1.5" fill="currentColor" opacity="0.6" />
-                </svg>
-              </motion.div>
 
               {/* Points revealed */}
               <motion.div
@@ -881,27 +874,17 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 <p className="text-5xl sm:text-6xl md:text-7xl font-bold font-label text-white mb-1">
                   +{boxes[2].points.toLocaleString()}
                 </p>
-                <p className="text-sm text-rb-muted/50 font-label">points</p>
+                <p className="text-sm text-white/60 font-label">points</p>
               </motion.div>
 
-              {/* Tier badge */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mb-3"
-              >
-                <span className="inline-block px-6 py-2.5 rounded-full border border-brand-gold/30 text-brand-gold font-display font-bold text-sm tracking-[0.2em] uppercase">
-                  {boxes[2].tierName}
-                </span>
-              </motion.div>
+              {/* (Removed sparkle icon and tier badge per UI request) */}
 
               {/* Status locked text */}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-rb-muted/50 text-sm font-label mb-5 sm:mb-8"
+                className="text-white/60 text-sm font-label mb-5 sm:mb-8"
               >
                 Your status is locked for Season 1.
               </motion.p>
@@ -913,11 +896,11 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 transition={{ delay: 0.5 }}
                 className="glass-panel rounded-2xl p-5 sm:p-6 max-w-xs mx-auto mb-6 sm:mb-8"
               >
-                <p className="font-label text-[10px] tracking-[0.25em] text-rb-muted/40 uppercase mb-2">
+                <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-2">
                   Total Allocation
                 </p>
                 <p className="text-3xl sm:text-4xl font-bold font-label tracking-tight text-white">
-                  {displayTotal.toLocaleString()} <span className="text-rb-muted/40 text-base">pts</span>
+                  {displayTotal.toLocaleString()} <span className="text-white/50 text-base">pts</span>
                 </p>
               </motion.div>
 
