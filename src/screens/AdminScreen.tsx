@@ -481,11 +481,12 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                 value={sort}
                 onChange={(e) => { setSort(e.target.value); setPage(0); }}
                 className="px-4 py-2.5 rounded-xl bg-rb-card border border-rb-border text-white text-sm font-label focus:outline-none appearance-none cursor-pointer"
+                style={{ colorScheme: 'dark' }}
               >
-                <option value="total_points">Sort: Points</option>
-                <option value="followers_count">Sort: Followers</option>
-                <option value="gold_points">Sort: Gold Points</option>
-                <option value="created_at">Sort: Newest</option>
+                <option value="total_points" style={{ background: '#1a1a1a', color: '#fff' }}>Sort: Points</option>
+                <option value="followers_count" style={{ background: '#1a1a1a', color: '#fff' }}>Sort: Followers</option>
+                <option value="gold_points" style={{ background: '#1a1a1a', color: '#fff' }}>Sort: Gold Points</option>
+                <option value="created_at" style={{ background: '#1a1a1a', color: '#fff' }}>Sort: Newest</option>
               </select>
             </div>
 
