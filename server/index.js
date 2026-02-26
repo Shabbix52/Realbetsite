@@ -13,7 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '..', '.env') });
 
 const app = express();
-app.set('trust proxy', 1); // Trust first proxy (Railway/Render/etc.)
+app.set('trust proxy', true); // Trust all proxies — required for Railway (Cloudflare + Railway = 2 hops)
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
@@ -55,14 +55,17 @@ app.use(cors({
 app.use(express.json({ limit: '16kb' }));
 
 // Rate limiting
-const generalLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
-const adminLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
+const generalLimiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+const adminLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+// Separate instances per OAuth route — shared instances cause all routes to share one bucket
+const twitterAuthLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+const discordAuthLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+const rollLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
 app.use('/auth/leaderboard', generalLimiter);
+app.use('/auth/scores/roll', rollLimiter);
 app.use('/auth/scores', generalLimiter);
-app.use('/auth/twitter', authLimiter);
-app.use('/auth/discord', authLimiter);
-app.use('/auth/scores/roll', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }));
+app.use('/auth/twitter', twitterAuthLimiter);
+app.use('/auth/discord', discordAuthLimiter);
 app.use('/admin', adminLimiter);
 
 // ─────────────────────────────────────────────
