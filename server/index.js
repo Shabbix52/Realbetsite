@@ -13,7 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '..', '.env') });
 
 const app = express();
-app.set('trust proxy', true); // Trust all proxies — required for Railway (Cloudflare + Railway = 2 hops)
+app.set('trust proxy', 1); // Trust first proxy hop (Railway's load balancer)
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
