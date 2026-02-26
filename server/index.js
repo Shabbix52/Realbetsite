@@ -155,6 +155,9 @@ async function initDB() {
 
     // Track login count to identify new vs returning users
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 1`);
+    // Track share post URL for VIP screen share confirmation
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS share_post_url TEXT`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS shared_at TIMESTAMPTZ`);
 
     console.log('✓ PostgreSQL connected & tables ready');
   } finally {
@@ -661,6 +664,8 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
       followersCount: row.followers_count || 0,
       discordId: row.discord_id || null,
       discordUsername: row.discord_username || null,
+      hasShared: !!row.shared_at,
+      sharePostUrl: row.share_post_url || null,
       boxes: [
         { type: 'bronze', state: 'revealed', points: row.bronze_points, tierName: row.bronze_tier },
         { type: 'silver', state: 'revealed', points: row.silver_points, tierName: row.silver_tier },
@@ -675,6 +680,38 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
   } catch (err) {
     console.error('Score load error:', err.message);
     res.status(500).json({ error: 'Failed to load scores' });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  SHARE — Record that a user shared on X
+// ─────────────────────────────────────────────
+
+app.post('/auth/share', async (req, res) => {
+  const { twitterId, postUrl } = req.body;
+  if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
+
+  // Validate: must be a full tweet URL with /username/status/tweetId
+  const url = postUrl && typeof postUrl === 'string' ? postUrl.trim().slice(0, 500) : null;
+  const tweetUrlRegex = /^https?:\/\/(twitter|x)\.com\/[A-Za-z0-9_]{1,50}\/status\/[0-9]{5,25}(\?.*)?$/;
+  if (url && !tweetUrlRegex.test(url)) {
+    return res.status(400).json({ error: 'Invalid post URL — must be a full x.com/username/status/id link' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO scores (twitter_id, share_post_url, shared_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (twitter_id) DO UPDATE SET
+         share_post_url = COALESCE($2, scores.share_post_url),
+         shared_at = COALESCE(scores.shared_at, NOW())`,
+      [twitterId, url]
+    );
+    await redis.del(`scores:${twitterId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Share save error:', err.message);
+    res.status(500).json({ error: 'Failed to save share' });
   }
 });
 
@@ -1022,7 +1059,8 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
         MAX(total_points) AS max_points,
         AVG(followers_count)::INTEGER AS avg_followers,
         COUNT(CASE WHEN gold_points > 0 THEN 1 END) AS completed_gold,
-        COUNT(CASE WHEN total_points > 0 THEN 1 END) AS active_users
+        COUNT(CASE WHEN total_points > 0 THEN 1 END) AS active_users,
+        COUNT(CASE WHEN shared_at IS NOT NULL THEN 1 END) AS shared_count
       FROM scores
     `);
 
@@ -1099,6 +1137,9 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
         totalPoints: r.total_points,
         realPoints: Math.floor(r.total_points * 0.4),
         cashExposure: Math.round((r.total_points * 0.6 / 20) * 100) / 100,
+        hasShared: !!r.shared_at,
+        sharePostUrl: r.share_post_url || null,
+        sharedAt: r.shared_at || null,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       })),
@@ -1155,13 +1196,14 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
               total_points, FLOOR(total_points * 0.4) AS real_points,
               ROUND(total_points * 0.30 / 20, 2) AS freeplay_dollars,
               ROUND(total_points * 0.30 / 20, 2) AS deposit_match_dollars,
+              share_post_url, shared_at,
               created_at, updated_at
        FROM scores ORDER BY total_points DESC`
     );
 
-    const header = 'twitter_id,username,followers,bronze_pts,silver_pts,gold_pts,total_pts,real_pts,freeplay_$,deposit_match_$,created,updated\n';
+    const header = 'twitter_id,username,followers,bronze_pts,silver_pts,gold_pts,total_pts,real_pts,freeplay_$,deposit_match_$,shared,share_post_url,created,updated\n';
     const rows = result.rows.map(r =>
-      [r.twitter_id, csvSafe(r.username), r.followers_count, r.bronze_points, r.silver_points, r.gold_points, r.total_points, r.real_points, r.freeplay_dollars, r.deposit_match_dollars, r.created_at, r.updated_at].join(',')
+      [r.twitter_id, csvSafe(r.username), r.followers_count, r.bronze_points, r.silver_points, r.gold_points, r.total_points, r.real_points, r.freeplay_dollars, r.deposit_match_dollars, r.shared_at ? 'yes' : 'no', csvSafe(r.share_post_url), r.created_at, r.updated_at].join(',')
     ).join('\n');
 
     res.setHeader('Content-Type', 'text/csv');

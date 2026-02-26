@@ -15,6 +15,7 @@ interface AdminStats {
     avg_followers: string;
     completed_gold: string;
     active_users: string;
+    shared_count: string;
   };
   tierDistribution: {
     tier: string;
@@ -34,6 +35,9 @@ interface AdminUser {
   totalPoints: number;
   realPoints: number;
   cashExposure: number;
+  hasShared: boolean;
+  sharePostUrl: string | null;
+  sharedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -281,7 +285,8 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
               onChange={(e) => setKeyInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               placeholder="Admin key..."
-              className="w-full px-4 py-3 rounded-xl bg-rb-card border border-rb-border text-white text-sm font-label focus:outline-none focus:border-brand-gold/40 placeholder:text-rb-muted/30"
+              className="w-full px-4 py-3 rounded-xl border border-rb-border text-sm font-label focus:outline-none focus:border-brand-gold/40"
+              style={{ color: '#000000', backgroundColor: '#e5e5e5' }}
             />
             {error && <p className="text-brand-red text-xs font-label">{error}</p>}
             <button
@@ -397,7 +402,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
               {[
                 { label: 'Active Users', value: formatNum(stats.overview.active_users), sub: `${formatNum(stats.overview.total_users)} total` },
                 { label: 'Completed Gold', value: formatNum(stats.overview.completed_gold), sub: `of ${formatNum(stats.overview.active_users)} active` },
-                { label: 'Total Points Issued', value: formatNum(stats.overview.total_points_issued), sub: `avg ${formatNum(stats.overview.avg_points)}` },
+                { label: 'Shared on X', value: formatNum(stats.overview.shared_count), sub: `of ${formatNum(stats.overview.active_users)} active` },
                 { label: 'Max Power Score', value: formatNum(stats.overview.max_points), sub: `avg followers ${formatNum(stats.overview.avg_followers)}` },
               ].map((stat) => (
                 <div key={stat.label} className="glass-panel rounded-xl p-4">
@@ -474,7 +479,8 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by username..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-rb-card border border-rb-border text-white text-sm font-label focus:outline-none focus:border-brand-gold/40 placeholder:text-rb-muted/30"
+                  className="w-full px-4 py-2.5 rounded-xl border border-rb-border text-sm font-label focus:outline-none focus:border-brand-gold/40"
+                  style={{ color: '#000000', backgroundColor: '#e5e5e5' }}
                 />
               </form>
               <select
@@ -506,6 +512,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                           <th className="text-right py-3 px-4">Power Score</th>
                           <th className="text-right py-3 px-4">REAL Pts</th>
                           <th className="text-right py-3 px-4">Cash $</th>
+                          <th className="text-center py-3 px-4">Shared</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -523,6 +530,17 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                             <td className="py-2.5 px-4 text-right font-label text-white font-bold">{user.totalPoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-brand-gold">{user.realPoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-brand-red">${user.cashExposure.toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-center font-label">
+                              {user.hasShared ? (
+                                user.sharePostUrl ? (
+                                  <a href={user.sharePostUrl} target="_blank" rel="noopener noreferrer" className="text-[#1DA1F2] hover:underline text-xs" title={user.sharePostUrl}>🔗 Post</a>
+                                ) : (
+                                  <span className="text-green-400 text-xs">✓</span>
+                                )
+                              ) : (
+                                <span className="text-rb-muted/20 text-xs">—</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -626,7 +644,8 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                         value={refSearch}
                         onChange={(e) => setRefSearch(e.target.value)}
                         placeholder="Search by username or code..."
-                        className="w-full px-4 py-2.5 rounded-xl bg-rb-card border border-rb-border text-white text-sm font-label focus:outline-none focus:border-purple-500/40 placeholder:text-rb-muted/30"
+                        className="w-full px-4 py-2.5 rounded-xl border border-rb-border text-sm font-label focus:outline-none focus:border-purple-500/40"
+                        style={{ color: '#000000', backgroundColor: '#e5e5e5' }}
                       />
                     </form>
                   </div>

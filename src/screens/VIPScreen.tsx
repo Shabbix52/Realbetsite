@@ -215,7 +215,17 @@ interface VIPScreenProps {
 }
 
 const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
-  const [shared, setShared] = useState(false);
+  // Persist share state per twitterId so it survives refreshes/re-logins
+  const sharedKey = userData.twitterId ? `realbet_shared_${userData.twitterId}` : null;
+  const [shared, setShared] = useState(() => {
+    if (!sharedKey) return false;
+    try { return localStorage.getItem(sharedKey) === '1'; } catch { return false; }
+  });
+
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareUrlInput, setShareUrlInput] = useState('');
+  const [shareUrlError, setShareUrlError] = useState('');
 
   // ── Referral state ──
   const [referralCode, setReferralCode] = useState<string>('');
@@ -237,9 +247,19 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
   const [referredBy, setReferredBy] = useState<string | null>(null);
   const [showReferralDetails, setShowReferralDetails] = useState(false);
 
-  // Load referral data
+  // Load referral data + restore share state from DB
   useEffect(() => {
     if (!userData.twitterId) return;
+    // Restore hasShared from server (cross-device)
+    fetch(getApiUrl(`/auth/scores/${userData.twitterId}`))
+      .then(r => r.json())
+      .then(data => {
+        if (data?.hasShared && !shared) {
+          setShared(true);
+          if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch { /* ignore */ } }
+        }
+      })
+      .catch(() => {});
     setReferralLoading(true);
     fetch(getApiUrl(`/auth/referral/${userData.twitterId}`))
       .then(r => r.json())
@@ -334,15 +354,41 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
     const text = encodeURIComponent(
       `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Points\n\n@RealBet | The House is open.\n\n#RealBetSeason1`,
     );
-    window.open(
-      `https://twitter.com/intent/tweet?text=${text}`,
-      'twitter-share',
-      'width=550,height=420',
-    );
+    // Open tweet window
+    const a = document.createElement('a');
+    a.href = `https://twitter.com/intent/tweet?text=${text}`;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Show modal to collect post URL after a short delay
+    setTimeout(() => setShowShareModal(true), 1500);
+  };
 
-    setTimeout(() => {
-      setShared(true);
-    }, 2000);
+  const handleShareConfirm = async () => {
+    const url = shareUrlInput.trim();
+    // Must be a full tweet URL: https://x.com/username/status/1234567890
+    const tweetUrlRegex = /^https?:\/\/(twitter|x)\.com\/[A-Za-z0-9_]{1,50}\/status\/[0-9]{5,25}(\?.*)?$/;
+    if (url && !tweetUrlRegex.test(url)) {
+      setShareUrlError('Please enter a valid post URL, e.g. https://x.com/yourname/status/...');
+      return;
+    }
+    setShareUrlError('');
+    // Persist locally
+    if (sharedKey) {
+      try { localStorage.setItem(sharedKey, '1'); } catch { /* ignore */ }
+    }
+    // Save to backend
+    if (userData.twitterId) {
+      fetch(getApiUrl('/auth/share'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ twitterId: userData.twitterId, postUrl: url || null }),
+      }).catch(() => {});
+    }
+    setShowShareModal(false);
+    setShared(true);
   };
 
   const handleClaim = () => {
@@ -357,6 +403,73 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
       className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10"
     >
 
+      {/* Share confirmation modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div
+            key="share-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+            onClick={(e) => { if (e.target === e.currentTarget) { setShowShareModal(false); setShared(true); if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch {} } } }}
+          >
+            <motion.div
+              key="share-modal"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 8 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-md glass-panel rounded-2xl p-6 space-y-5 border border-rb-border"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-white font-bold text-lg font-display tracking-wide">Nice post! 🎉</h3>
+                  <p className="text-rb-muted/60 text-sm mt-1">Paste your X post link below so we can verify it. This is optional — you can skip if you prefer.</p>
+                </div>
+                <button
+                  onClick={() => { setShowShareModal(false); setShared(true); if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch {} } }}
+                  className="text-rb-muted/40 hover:text-white transition-colors flex-shrink-0 mt-0.5"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={shareUrlInput}
+                  onChange={(e) => { setShareUrlInput(e.target.value); setShareUrlError(''); }}
+                  placeholder="https://x.com/yourname/status/..."
+                  className="w-full px-4 py-3 rounded-xl border border-rb-border text-sm font-label focus:outline-none focus:border-[#1DA1F2]/50"
+                  style={{ color: '#000', backgroundColor: '#e5e5e5' }}
+                  autoFocus
+                />
+                {shareUrlError && <p className="text-brand-red text-xs font-label">{shareUrlError}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowShareModal(false); setShared(true); if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch {} } }}
+                  className="flex-1 py-3 rounded-xl border border-rb-border text-rb-muted/50 text-sm font-bold tracking-wider hover:text-white hover:border-rb-border/70 transition-colors"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  SKIP
+                </button>
+                <button
+                  onClick={handleShareConfirm}
+                  className="flex-1 py-3 rounded-xl bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/30 text-sm font-bold tracking-wider transition-colors"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  CONFIRM
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
         variants={containerVariants}
         initial="hidden"
