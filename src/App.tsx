@@ -17,6 +17,7 @@ export interface UserData {
   tierName: string;
   totalPoints: number;
   followersCount: number;
+  isNewUser?: boolean;
 }
 
 const USER_PROFILE_KEY = 'realbet_user_profile';
@@ -30,7 +31,7 @@ function loadUserProfile(): Partial<UserData> | null {
   } catch { return null; }
 }
 
-function saveUserProfile(data: { twitterId: string; username: string; pfp: string }) {
+function saveUserProfile(data: { twitterId: string; username: string; pfp: string; isNewUser?: boolean }) {
   try {
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(data));
   } catch { /* ignore */ }
@@ -75,9 +76,9 @@ function App() {
     setScreen('boxes');
   }, []);
 
-  const handleUserProfileUpdate = useCallback((twitterId: string, username: string, pfp: string) => {
-    setUserData(prev => ({ ...prev, twitterId, username, pfp }));
-    saveUserProfile({ twitterId, username, pfp });
+  const handleUserProfileUpdate = useCallback((twitterId: string, username: string, pfp: string, isNewUser?: boolean) => {
+    setUserData(prev => ({ ...prev, twitterId, username, pfp, isNewUser }));
+    saveUserProfile({ twitterId, username, pfp, isNewUser });
   }, []);
 
   const handleBoxesDone = useCallback((points: number, tierName: string, followersCount: number) => {

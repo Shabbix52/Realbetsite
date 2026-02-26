@@ -253,8 +253,8 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
         setReferrals(data.referrals || []);
         setReferredBy(data.referredBy || null);
 
-        // Auto-apply referral code from URL if user hasn't been referred yet
-        if (!data.referredBy && referralCodeInput.trim()) {
+        // Auto-apply referral code from URL if user is new and hasn't been referred yet
+        if (!data.referredBy && referralCodeInput.trim() && userData.isNewUser) {
           autoApplyReferral(referralCodeInput.trim());
         }
       })
@@ -354,18 +354,18 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10 overflow-y-auto"
+      className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10"
     >
 
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="w-full max-w-4xl mx-auto py-4 sm:py-8 pb-12"
+        className="w-full max-w-4xl mx-auto py-4 sm:py-8 pb-24 sm:pb-16"
       >
         {/* ── Big Allocation Headline (optics layer) ── */}
-        <motion.div variants={itemVariants} className="text-center mb-5 sm:mb-8">
-          <h2 className="font-display text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight uppercase mb-1 sm:mb-2">
+        <motion.div variants={itemVariants} className="text-center mb-4 sm:mb-8">
+          <h2 className="font-display text-xl sm:text-3xl md:text-5xl font-bold tracking-tight uppercase mb-1 sm:mb-2">
             Season 1{' '}
             <span className="text-brand-red">Allocation</span>
           </h2>
@@ -373,7 +373,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3, type: 'spring', stiffness: 100 }}
-            className="text-4xl sm:text-5xl md:text-7xl font-bold font-label text-white mt-1 sm:mt-2"
+            className="text-3xl sm:text-5xl md:text-7xl font-bold font-label text-white mt-1 sm:mt-2"
             style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}
           >
             ${allocationDollars.toLocaleString()}
@@ -382,7 +382,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="text-brand-gold text-base sm:text-lg md:text-xl font-bold font-label mt-1 sm:mt-2"
+            className="text-brand-gold text-sm sm:text-lg md:text-xl font-bold font-label mt-1 sm:mt-2"
           >
             {displayPoints.toLocaleString()} Power Score
           </motion.p>
@@ -396,9 +396,9 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
           </motion.div>
 
           {/* Right Column: Info Panel */}
-          <motion.div variants={itemVariants} className="flex-1 w-full max-w-sm mx-auto lg:mx-0 space-y-4 sm:space-y-6">
+          <motion.div variants={itemVariants} className="flex-1 w-full lg:max-w-sm lg:mx-0 space-y-3 sm:space-y-5">
             {/* ── REFERRAL SYSTEM ── */}
-            <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="glass-panel rounded-2xl p-4 sm:p-6 space-y-3 sm:space-y-4">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -444,8 +444,9 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               {/* Referral link */}
               {referralCode && (
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 px-3 py-2.5 rounded-lg bg-rb-card border border-rb-border text-xs font-label text-white/60 truncate">
-                    {window.location.origin}?ref={referralCode}
+                  <div className="flex-1 px-3 py-2 rounded-lg bg-rb-card border border-rb-border text-[11px] sm:text-xs font-label text-white/60 overflow-hidden">
+                    <span className="sm:hidden">{window.location.hostname}?ref={referralCode}</span>
+                    <span className="hidden sm:inline truncate block">{window.location.origin}?ref={referralCode}</span>
                   </div>
                   <button
                     onClick={handleCopyReferral}
@@ -479,8 +480,8 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                 </button>
               )}
 
-              {/* Apply referral code (only if not already referred) */}
-              {!referredBy && (
+              {/* Apply referral code (only for new users who haven't been referred) */}
+              {!referredBy && userData.isNewUser && (
                 <div className="space-y-2 pt-1">
                   <p className="text-[10px] text-white/30 font-label tracking-wider">HAVE A REFERRAL CODE?</p>
                   <div className="flex items-center gap-2">
@@ -572,17 +573,17 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             </div>
 
             {/* Power Score + Allocation Panel */}
-            <div className="glass-panel rounded-2xl p-5 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4">
+            <div className="glass-panel rounded-2xl p-4 sm:p-6">
+              <div className="flex flex-row items-center justify-between gap-2">
                 <div>
                   <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-1 sm:mb-2">
                     Power Score
                   </p>
-                  <p className="text-3xl sm:text-4xl font-bold font-label text-white">
+                  <p className="text-2xl sm:text-4xl font-bold font-label text-white">
                     {powerScore.toLocaleString()}
                   </p>
                 </div>
-                <div className="sm:text-right">
+                <div className="text-right">
                   <p className="font-label text-[10px] tracking-wider text-white/50 uppercase">
                     Total Allocation
                   </p>
@@ -682,7 +683,8 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               <button
                 onClick={handleShare}
                 disabled={shared}
-                className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 ${
+                style={{ touchAction: 'manipulation' }}
+                className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
                   shared
                     ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                     : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
@@ -697,14 +699,15 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               <button
                 onClick={handleClaim}
                 disabled={!shared}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 ${
+                style={{
+                  touchAction: 'manipulation',
+                  ...(shared ? { background: 'linear-gradient(to bottom, rgba(255,59,48,0.9), #8B1A1A)' } : {}),
+                }}
+                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
                   shared
                     ? 'border border-brand-red/40 text-[#F0F1F7] shadow-[0_0_50px_rgba(255,59,48,0.15)] hover:shadow-[0_0_80px_rgba(255,59,48,0.3)]'
                     : 'glass-panel text-white/40 cursor-not-allowed'
                 }`}
-                style={shared ? {
-                  background: 'linear-gradient(to bottom, rgba(255,59,48,0.9), #8B1A1A)',
-                } : undefined}
               >
                 {!shared && <LockIcon className="w-4 h-4" />}
                 {shared ? <><span className="hidden sm:inline">CLAIM ${split.totalCash.toLocaleString()} + {split.realPoints.toLocaleString()} REAL PTS</span><span className="sm:hidden">CLAIM ${split.totalCash.toLocaleString()} REWARDS</span></> : 'CLAIM REWARDS'}
@@ -726,7 +729,8 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             {onLeaderboard && (
               <button
                 onClick={onLeaderboard}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold text-sm font-bold font-label tracking-wider border border-brand-gold/10 transition-all"
+                style={{ touchAction: 'manipulation' }}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 active:scale-[0.98] text-brand-gold text-sm font-bold font-label tracking-wider border border-brand-gold/10 transition-all"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 21h8m-4-4v4M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />

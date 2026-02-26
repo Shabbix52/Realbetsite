@@ -14,12 +14,38 @@
       console.log('[OAuthCallback] Raw data param present:', !!raw);
       if (raw) {
         var data = JSON.parse(decodeURIComponent(raw));
-        console.log('[OAuthCallback] Parsed:', JSON.stringify({success: data.success, provider: data.provider, username: data.user ? data.user.username : null}));
-        document.getElementById('msg').textContent = data.success ? 'Connected!' : 'Connection failed';
+
+        // Validate data structure before trusting it
+        if (!data || typeof data !== 'object' || typeof data.success !== 'boolean' ||
+            !data.provider || !['twitter', 'discord'].includes(data.provider)) {
+          throw new Error('Invalid OAuth data structure');
+        }
+
+        // Sanitize — only allow expected fields through
+        var sanitized = {
+          success: !!data.success,
+          provider: data.provider,
+          error: typeof data.error === 'string' ? data.error.substring(0, 200) : null,
+          user: null
+        };
+        if (data.user && typeof data.user === 'object') {
+          sanitized.user = {
+            id: String(data.user.id || '').substring(0, 100),
+            username: String(data.user.username || '').substring(0, 100),
+            name: data.user.name ? String(data.user.name).substring(0, 200) : undefined,
+            globalName: data.user.globalName ? String(data.user.globalName).substring(0, 200) : undefined,
+            avatar: data.user.avatar ? String(data.user.avatar).substring(0, 500) : undefined,
+            followersCount: typeof data.user.followersCount === 'number' ? data.user.followersCount : 0,
+            isNewUser: !!data.user.isNewUser
+          };
+        }
+
+        console.log('[OAuthCallback] Parsed:', JSON.stringify({success: sanitized.success, provider: sanitized.provider, username: sanitized.user ? sanitized.user.username : null}));
+        document.getElementById('msg').textContent = sanitized.success ? 'Connected!' : 'Connection failed';
 
         // Write to localStorage — primary channel
         try {
-          localStorage.setItem('oauth_result', JSON.stringify(data));
+          localStorage.setItem('oauth_result', JSON.stringify(sanitized));
           console.log('[OAuthCallback] localStorage written OK');
           var verify = localStorage.getItem('oauth_result');
           console.log('[OAuthCallback] localStorage verify:', !!verify);
@@ -27,11 +53,11 @@
           console.error('[OAuthCallback] localStorage FAILED:', e);
         }
 
-        // postMessage to opener — backup channel
+        // postMessage to opener — restrict to same origin only
         console.log('[OAuthCallback] window.opener:', !!window.opener);
         if (window.opener) {
           try {
-            window.opener.postMessage(data, '*');
+            window.opener.postMessage(sanitized, window.location.origin);
             console.log('[OAuthCallback] postMessage sent');
           } catch(e) {
             console.error('[OAuthCallback] postMessage FAILED:', e);
@@ -43,7 +69,7 @@
       }
     } catch(e) {
       console.error('[OAuthCallback] Exception:', e);
-      document.getElementById('msg').textContent = 'Error: ' + e.message;
+      document.getElementById('msg').textContent = 'Authentication error';
     }
     setTimeout(function() { window.close(); }, 2500);
   </script>

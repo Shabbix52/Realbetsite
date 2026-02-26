@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { getApiUrl } from '../config';
+import { getApiUrl, API_URL } from '../config';
 
 export interface OAuthUser {
   id: string;
@@ -8,6 +8,7 @@ export interface OAuthUser {
   globalName?: string;
   avatar?: string;
   followersCount?: number;
+  isNewUser?: boolean;
 }
 
 export interface OAuthResult {
@@ -65,10 +66,18 @@ export function useOAuthPopup() {
   }, []);
 
   // Listen for postMessage — this is the PRIMARY channel now.
-  // The server's inline callback page sends: window.opener.postMessage(data, '*')
-  // This works cross-origin since postMessage with '*' has no origin restriction.
+  // The server's inline callback page sends: window.opener.postMessage(data, CLIENT_URL)
+  // We validate the origin to prevent spoofed messages from malicious pages.
   useEffect(() => {
+    // Derive the expected origin from the API URL (e.g. 'https://server.railway.app')
+    const expectedOrigin = API_URL ? new URL(API_URL).origin : window.location.origin;
+
     const handleMessage = (event: MessageEvent) => {
+      // Validate origin — only accept messages from our own server
+      if (event.origin !== expectedOrigin && event.origin !== window.location.origin) {
+        return;
+      }
+
       const data = event.data;
       // Filter out noise (browser extensions, React devtools, etc.)
       if (!data || typeof data !== 'object' || !data.provider || typeof data.success !== 'boolean') return;

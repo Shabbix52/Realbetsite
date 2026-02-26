@@ -22,12 +22,23 @@ const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
 const allowedOrigins = [
   CLIENT_URL,
   'http://localhost:5173',
-  /https:\/\/lovable-.*\.vercel\.app$/
+  /^https:\/\/lovable-[a-z0-9-]+\.vercel\.app$/
 ];
 
 // Disable COOP/COEP so postMessage + window.opener works cross-origin in popup flow
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "https:", "data:"],
+      connectSrc: ["'self'", CLIENT_URL, "https://api.twitter.com", "https://discord.com"],
+      frameSrc: ["'self'", CLIENT_URL],
+      frameAncestors: ["'none'"],
+    },
+  },
   crossOriginOpenerPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
@@ -41,7 +52,7 @@ app.use(cors({
   },
   credentials: true 
 }));
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 
 // Rate limiting
 const generalLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
@@ -51,6 +62,7 @@ app.use('/auth/leaderboard', generalLimiter);
 app.use('/auth/scores', generalLimiter);
 app.use('/auth/twitter', authLimiter);
 app.use('/auth/discord', authLimiter);
+app.use('/auth/scores/roll', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }));
 app.use('/admin', adminLimiter);
 
 // ─────────────────────────────────────────────
@@ -138,6 +150,9 @@ async function initDB() {
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS referral_count INTEGER DEFAULT 0`);
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS scores_referral_code_idx ON scores (referral_code) WHERE referral_code IS NOT NULL`);
 
+    // Track login count to identify new vs returning users
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 1`);
+
     console.log('✓ PostgreSQL connected & tables ready');
   } finally {
     client.release();
@@ -148,14 +163,15 @@ async function upsertUser(provider, providerData) {
   const { id: providerId, username, name, globalName, avatar, followersCount } = providerData;
   const displayName = name || globalName || username;
   const result = await pool.query(
-    `INSERT INTO users (provider, provider_id, username, display_name, avatar_url, followers_count)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO users (provider, provider_id, username, display_name, avatar_url, followers_count, login_count)
+     VALUES ($1, $2, $3, $4, $5, $6, 1)
      ON CONFLICT (provider, provider_id) DO UPDATE
-       SET username = $3, display_name = $4, avatar_url = $5, followers_count = $6
-     RETURNING id`,
+       SET username = $3, display_name = $4, avatar_url = $5, followers_count = $6,
+           login_count = users.login_count + 1
+     RETURNING id, login_count`,
     [provider, providerId, username, displayName, avatar, followersCount || 0]
   );
-  return result.rows[0].id;
+  return { id: result.rows[0].id, loginCount: result.rows[0].login_count };
 }
 
 // Redis
@@ -258,7 +274,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
     const followersCount = user.public_metrics?.followers_count || 0;
 
     // Store in database
-    const dbId = await upsertUser('twitter', {
+    const { id: dbId, loginCount } = await upsertUser('twitter', {
       id: user.id,
       username: user.username,
       name: user.name,
@@ -267,7 +283,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
     });
     // Cache in Redis (expire in 24h)
     await redis.setEx(`user:twitter:${user.id}`, 86400, JSON.stringify({ dbId, username: user.username, followersCount }));
-    console.log(`Twitter user @${user.username} (${followersCount} followers) saved (db id: ${dbId})`);
+    console.log(`Twitter user @${user.username} (${followersCount} followers) saved (db id: ${dbId}, login #${loginCount})`);
 
     sendResultPage(res, true, 'twitter', null, {
       id: user.id,
@@ -275,6 +291,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
       name: user.name,
       avatar: user.profile_image_url,
       followersCount,
+      isNewUser: loginCount === 1,
     });
   } catch (err) {
     console.error('Twitter OAuth error:', err);
@@ -351,7 +368,7 @@ app.get('/auth/discord/callback', async (req, res) => {
       : `https://cdn.discordapp.com/embed/avatars/${parseInt(userData.discriminator || '0') % 5}.png`;
 
     // Store in database
-    const dbId = await upsertUser('discord', {
+    const { id: dbId } = await upsertUser('discord', {
       id: userData.id,
       username: userData.username,
       globalName: userData.global_name,
@@ -435,6 +452,87 @@ app.post('/auth/discord/link', async (req, res) => {
 //  SCORES — Save & load box results
 // ─────────────────────────────────────────────
 
+// ── Score signing (HMAC) ──
+const SCORE_SECRET = process.env.SCORE_SECRET || (process.env.ADMIN_KEY + '-score-hmac');
+const TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+// Gold point ranges per follower tier (mirrors tierConfig.ts)
+const GOLD_TIERS_SERVER = [
+  { min: 0,      max: 1000,    ptMin: 0,     ptMax: 1000  },
+  { min: 1000,   max: 2000,    ptMin: 1001,  ptMax: 1800  },
+  { min: 2000,   max: 3000,    ptMin: 1801,  ptMax: 2400  },
+  { min: 3000,   max: 5000,    ptMin: 2401,  ptMax: 3000  },
+  { min: 5000,   max: 7500,    ptMin: 3001,  ptMax: 4500  },
+  { min: 7500,   max: 10000,   ptMin: 4501,  ptMax: 6000  },
+  { min: 10000,  max: 15000,   ptMin: 6001,  ptMax: 8500  },
+  { min: 15000,  max: 20000,   ptMin: 8501,  ptMax: 11000 },
+  { min: 20000,  max: 25000,   ptMin: 11001, ptMax: 13000 },
+  { min: 25000,  max: 30000,   ptMin: 13001, ptMax: 14500 },
+  { min: 30000,  max: 35000,   ptMin: 14501, ptMax: 16000 },
+  { min: 35000,  max: 40000,   ptMin: 16001, ptMax: 18000 },
+  { min: 40000,  max: 45000,   ptMin: 18001, ptMax: 20000 },
+  { min: 45000,  max: 50000,   ptMin: 20001, ptMax: 22000 },
+  { min: 50000,  max: 60000,   ptMin: 22001, ptMax: 25000 },
+  { min: 60000,  max: 70000,   ptMin: 25001, ptMax: 28000 },
+  { min: 70000,  max: 80000,   ptMin: 28001, ptMax: 31000 },
+  { min: 80000,  max: 90000,   ptMin: 31001, ptMax: 34000 },
+  { min: 90000,  max: 100000,  ptMin: 34001, ptMax: 37000 },
+  { min: 100000, max: 125000,  ptMin: 37001, ptMax: 42000 },
+  { min: 125000, max: 150000,  ptMin: 42001, ptMax: 47000 },
+  { min: 150000, max: 200000,  ptMin: 47001, ptMax: 53000 },
+  { min: 200000, max: 250000,  ptMin: 53001, ptMax: 60000 },
+  { min: 250000, max: Infinity, ptMin: 60001, ptMax: 70000 },
+];
+
+const TIER_NAMES_SERVER = {
+  bronze: ['Pit Boss Prospect', 'Table Rookie', 'Chip Stacker', 'House Hopeful'],
+  silver: ['High Roller', 'VIP Candidate', 'Felt Walker', 'Card Counter'],
+  gold:   ['House Legend', 'Whale Status', 'Inner Circle', 'The Chosen'],
+};
+
+function srvRandInRange(min, max) {
+  return crypto.randomInt(min, max + 1);
+}
+
+function getGoldRange(followersCount) {
+  const tier = GOLD_TIERS_SERVER.find(t => followersCount >= t.min && followersCount < t.max) || GOLD_TIERS_SERVER[0];
+  return [tier.ptMin, tier.ptMax];
+}
+
+function rollBoxPoints(type, followersCount) {
+  const fc = parseInt(followersCount, 10) || 0;
+  let points, tierName;
+  if (type === 'gold') {
+    const [min, max] = getGoldRange(fc);
+    points = srvRandInRange(min, max);
+  } else if (type === 'bronze') {
+    points = srvRandInRange(100, 500);
+  } else if (type === 'silver') {
+    points = srvRandInRange(500, 1100);
+  } else {
+    return null;
+  }
+  tierName = TIER_NAMES_SERVER[type][crypto.randomInt(TIER_NAMES_SERVER[type].length)];
+  return { points, tierName };
+}
+
+function generateScoreToken(twitterId, type, points, tierName, issuedAt) {
+  const payload = `${twitterId}:${type}:${points}:${tierName}:${issuedAt}`;
+  return crypto.createHmac('sha256', SCORE_SECRET).update(payload).digest('hex');
+}
+
+function verifyScoreToken(twitterId, type, points, tierName, issuedAt, token) {
+  if (!token || !issuedAt) return false;
+  if (Date.now() - Number(issuedAt) > TOKEN_TTL_MS) return false;
+  const expected = generateScoreToken(twitterId, type, points, tierName, issuedAt);
+  try {
+    const a = Buffer.from(expected, 'hex');
+    const b = Buffer.from(token.slice(0, expected.length), 'hex');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch { return false; }
+}
+
 // Valid point ranges for server-side validation
 const VALID_RANGES = { bronze: [100, 500], silver: [500, 1100], gold: [0, 70000] };
 const MAX_TOTAL_POINTS = 71600; // 500 + 1100 + 70000
@@ -444,6 +542,21 @@ function validatePoints(type, pts) {
   if (!range) return false;
   return Number.isInteger(pts) && pts >= range[0] && pts <= range[1];
 }
+
+// Roll server-side points for a box and return a signed token
+app.get('/auth/scores/roll', async (req, res) => {
+  const { type, twitterId, followersCount } = req.query;
+  if (!type || !twitterId) return res.status(400).json({ error: 'type and twitterId required' });
+  if (!['bronze', 'silver', 'gold'].includes(type)) return res.status(400).json({ error: 'Invalid box type' });
+
+  const rolled = rollBoxPoints(type, followersCount);
+  if (!rolled) return res.status(500).json({ error: 'Roll failed' });
+
+  const issuedAt = Date.now();
+  const token = generateScoreToken(twitterId, type, rolled.points, rolled.tierName, issuedAt);
+
+  res.json({ points: rolled.points, tierName: rolled.tierName, token, issuedAt });
+});
 
 app.post('/auth/scores', async (req, res) => {
   const { twitterId, username, followersCount, boxes, walletMultiplier, totalPoints } = req.body;
@@ -463,6 +576,27 @@ app.post('/auth/scores', async (req, res) => {
     const computedTotal = boxes.reduce((s, b) => s + (b.points || 0), 0);
     if (totalPoints && Math.abs(computedTotal - totalPoints) > 1) {
       return res.status(400).json({ error: 'Total doesn\'t match box sum' });
+    }
+
+    // HMAC token verification
+    const boxesWithTokens = boxes.filter(b => b.token && b.issuedAt && b.points > 0);
+    const revealedBoxes = boxes.filter(b => b.points > 0);
+    if (boxesWithTokens.length > 0) {
+      // At least some tokens present — verify every one that has a token
+      for (const box of boxesWithTokens) {
+        const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
+        if (!valid) {
+          console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
+          return res.status(400).json({ error: 'Score verification failed' });
+        }
+      }
+      if (boxesWithTokens.length < revealedBoxes.length) {
+        // Some boxes revealed but missing tokens (mixed session) — log and continue
+        console.warn(`Score partial tokens from @${username || twitterId}: ${boxesWithTokens.length}/${revealedBoxes.length} signed`);
+      }
+    } else if (revealedBoxes.length > 0) {
+      // No tokens at all — legacy session (pre-HMAC deploy), accept but log
+      console.warn(`Score without tokens (legacy) from @${username || twitterId}`);
     }
   }
 
@@ -716,12 +850,21 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
   }
 });
 
-// Apply a referral code — called when a new user signs up
+// Apply a referral code — new users only (first sign-up)
 app.post('/auth/referral/apply', async (req, res) => {
   const { twitterId, referralCode, username } = req.body;
   if (!twitterId || !referralCode) return res.status(400).json({ error: 'twitterId and referralCode required' });
 
   try {
+    // Block existing users — only allow referral on very first sign-up
+    const userRecord = await pool.query(
+      'SELECT login_count FROM users WHERE provider = $1 AND provider_id = $2',
+      ['twitter', twitterId]
+    );
+    if (userRecord.rows.length > 0 && userRecord.rows[0].login_count > 1) {
+      return res.status(400).json({ error: 'Referral codes can only be used on your first sign-up' });
+    }
+
     // Check if user already used a referral code
     const existing = await pool.query(
       'SELECT referred_by FROM scores WHERE twitter_id = $1',
@@ -821,11 +964,11 @@ app.post('/auth/referral/apply', async (req, res) => {
       client.release();
     }
   } catch (err) {
-    if (err.message?.includes('Already used') || err.message?.includes('Invalid') || err.message?.includes('Cannot use')) {
-      throw err;
-    }
     console.error('Referral apply error:', err.message);
-    res.status(500).json({ error: 'Failed to apply referral code' });
+    // Avoid double-sending — check if response was already sent
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to apply referral code' });
+    }
   }
 });
 
@@ -854,8 +997,8 @@ app.get('/auth/referral/validate/:code', async (req, res) => {
 const ADMIN_KEY = process.env.ADMIN_KEY || 'realbet-admin-2026';
 
 function requireAdmin(req, res, next) {
-  const key = req.headers['x-admin-key'] || req.query.key;
-  if (key !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  const key = req.headers['x-admin-key'];
+  if (!key || key !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
   next();
 }
 
@@ -1129,7 +1272,8 @@ app.get('/admin/referrals', requireAdmin, async (req, res) => {
 
 function sendResultPage(res, success, provider, error = null, user = null) {
   const payload = { success, provider, error, user };
-  const json = JSON.stringify(payload);
+  // Escape </script> and <!-- sequences to prevent XSS in inline script blocks
+  const json = JSON.stringify(payload).replace(/<\//g, '<\/').replace(/<!--/g, '<\!--');
   console.log(`[OAuth Result] ${provider} success=${success} user=${user?.username || 'n/a'} error=${error || 'none'}`);
 
   // Serve inline HTML that sends postMessage to opener (cross-origin safe)
@@ -1152,7 +1296,7 @@ function sendResultPage(res, success, provider, error = null, user = null) {
     // Channel 1: postMessage to opener (works cross-origin)
     if (window.opener) {
       try {
-        window.opener.postMessage(data, '*');
+        window.opener.postMessage(data, '${CLIENT_URL}');
         sent = true;
         console.log('[OAuthCallback] postMessage sent to opener');
       } catch(e) {

@@ -15,6 +15,8 @@ interface BoxData {
   state: BoxState;
   points: number;
   tierName: string;
+  token?: string;
+  issuedAt?: number;
 }
 
 const TIER_NAMES: Record<BoxType, string[]> = {
@@ -112,7 +114,7 @@ function saveAuthState(state: SavedAuthState) {
 interface BoxesScreenProps {
   userData: UserData;
   onComplete: (points: number, tierName: string, followersCount: number) => void;
-  onUserProfile: (twitterId: string, username: string, pfp: string) => void;
+  onUserProfile: (twitterId: string, username: string, pfp: string, isNewUser?: boolean) => void;
 }
 
 const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
@@ -196,30 +198,61 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const displayTotal = useCountUp(totalPoints, 1000);
   const completedTasks = [tasks.follow, tasks.discord].filter(Boolean).length;
 
-  const openBox = useCallback((index: number) => {
+  const openBox = useCallback(async (index: number) => {
     const box = boxes[index];
     if (box.state !== 'ready') return;
 
-    // Set to opening
+    // Start shake animation immediately
     setBoxes(prev => prev.map((b, i) => i === index ? { ...b, state: 'opening' } : b));
 
-    // After shake animation, reveal
+    // Roll server-side points (signed) — concurrent with animation
+    let rolledPoints: number | null = null;
+    let rolledTierName: string | null = null;
+    let rolledToken: string | undefined;
+    let rolledIssuedAt: number | undefined;
+
+    if (twitterId) {
+      try {
+        const rollRes = await fetch(
+          getApiUrl(`/auth/scores/roll?type=${box.type}&twitterId=${encodeURIComponent(twitterId)}&followersCount=${followersCount}`)
+        );
+        if (rollRes.ok) {
+          const rollData = await rollRes.json();
+          rolledPoints = rollData.points;
+          rolledTierName = rollData.tierName;
+          rolledToken = rollData.token;
+          rolledIssuedAt = rollData.issuedAt;
+        }
+      } catch { /* fall back to local random below */ }
+    }
+
+    // After animation completes, reveal
     setTimeout(() => {
       let points: number;
-      if (box.type === 'gold') {
-        // Gold: random within the follower-tier range
-        const tier = getTierForFollowers(followersCount);
-        points = randomInRange(tier.goldPointsMin, tier.goldPointsMax);
+      let tierName: string;
+
+      if (rolledPoints !== null && rolledTierName !== null) {
+        // Use server-generated + signed values
+        points = rolledPoints;
+        tierName = rolledTierName;
       } else {
-        // Bronze/Silver: random within spec range
-        const [min, max] = BOX_POINTS[box.type];
-        points = randomInRange(min, max);
+        // Fallback: local random (no token; range validation still applies on submit)
+        if (box.type === 'gold') {
+          const tier = getTierForFollowers(followersCount);
+          points = randomInRange(tier.goldPointsMin, tier.goldPointsMax);
+        } else {
+          const [min, max] = BOX_POINTS[box.type];
+          points = randomInRange(min, max);
+        }
+        tierName = pickRandom(TIER_NAMES[box.type]);
       }
-      const tierName = pickRandom(TIER_NAMES[box.type]);
 
       setBoxes(prev => {
         const updated = prev.map((b, i) => {
-          if (i === index) return { ...b, state: 'revealed' as BoxState, points, tierName };
+          if (i === index) return {
+            ...b, state: 'revealed' as BoxState, points, tierName,
+            ...(rolledToken ? { token: rolledToken, issuedAt: rolledIssuedAt } : {}),
+          };
           // Unlock next box (bronze → silver)
           if (i === index + 1 && b.state === 'locked' && box.type === 'bronze') {
             return { ...b, state: 'ready' as BoxState };
@@ -244,7 +277,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         }, 500);
       }
     }, 1300);
-  }, [boxes]);
+  }, [boxes, twitterId, followersCount, saveScoresToDB]);
 
   // Watch tasks state — when both are done, unlock gold and navigate
   useEffect(() => {
@@ -283,7 +316,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               const pfp = result.user.avatar
                 ? result.user.avatar.replace('_normal', '_400x400')
                 : `https://api.dicebear.com/7.x/avataaars/svg?seed=${result.user.username}`;
-              onUserProfile(result.user.id || '', result.user.username, pfp);
+              onUserProfile(result.user.id || '', result.user.username, pfp, result.user.isNewUser);
 
               // Load existing scores + Discord linkage from DB
               if (result.user.id) {
