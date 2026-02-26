@@ -113,6 +113,31 @@ async function initDB() {
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS discord_id VARCHAR(100)`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS discord_username VARCHAR(100)`);
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS scores_discord_id_idx ON scores (discord_id) WHERE discord_id IS NOT NULL`);
+
+    // ── Referral system tables ──
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id SERIAL PRIMARY KEY,
+        referrer_twitter_id VARCHAR(100) NOT NULL,
+        referred_twitter_id VARCHAR(100) NOT NULL UNIQUE,
+        referral_code VARCHAR(20) NOT NULL,
+        referrer_bonus INTEGER DEFAULT 0,
+        referred_bonus INTEGER DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        converted_at TIMESTAMPTZ
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_twitter_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_referrals_code ON referrals (referral_code)`);
+
+    // Add referral columns to scores table
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS referral_code VARCHAR(20)`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS referred_by VARCHAR(100)`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS referral_bonus_points INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS referral_count INTEGER DEFAULT 0`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS scores_referral_code_idx ON scores (referral_code) WHERE referral_code IS NOT NULL`);
+
     console.log('✓ PostgreSQL connected & tables ready');
   } finally {
     client.release();
@@ -597,6 +622,232 @@ app.get('/auth/leaderboard', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+//  REFERRAL SYSTEM — Generate codes, track referrals, award bonuses
+// ─────────────────────────────────────────────
+
+const REFERRAL_BONUS_REFERRER = 250;  // Points awarded to referrer per successful referral
+const REFERRAL_BONUS_REFERRED = 150;  // Points awarded to the referred user
+const MAX_REFERRAL_BONUS = 25000;     // Cap total referral bonus per user
+
+// Generate a unique referral code from twitter_id
+function generateReferralCode(twitterId) {
+  const hash = crypto.createHash('sha256').update(twitterId + 'realbet-ref-salt').digest('hex');
+  return 'RB' + hash.substring(0, 6).toUpperCase();
+}
+
+// Get or create referral code for a user + stats
+app.get('/auth/referral/:twitterId', async (req, res) => {
+  const { twitterId } = req.params;
+  if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
+
+  try {
+    // Try cache first
+    const cached = await redis.get(`referral:${twitterId}`);
+    if (cached) return res.json(JSON.parse(cached));
+
+    // Check if user already has a referral code
+    let result = await pool.query(
+      'SELECT referral_code, referral_bonus_points, referral_count, referred_by FROM scores WHERE twitter_id = $1',
+      [twitterId]
+    );
+
+    let referralCode;
+    let referralBonusPoints = 0;
+    let referralCount = 0;
+    let referredBy = null;
+
+    if (result.rows.length > 0 && result.rows[0].referral_code) {
+      referralCode = result.rows[0].referral_code;
+      referralBonusPoints = result.rows[0].referral_bonus_points || 0;
+      referralCount = result.rows[0].referral_count || 0;
+      referredBy = result.rows[0].referred_by || null;
+    } else if (result.rows.length > 0) {
+      // Row exists but no referral code — generate and store
+      referralCode = generateReferralCode(twitterId);
+      await pool.query(
+        `UPDATE scores SET referral_code = $2 WHERE twitter_id = $1`,
+        [twitterId, referralCode]
+      );
+    } else {
+      // No scores row at all — create one with just the referral code
+      referralCode = generateReferralCode(twitterId);
+      await pool.query(
+        `INSERT INTO scores (twitter_id, referral_code) VALUES ($1, $2) ON CONFLICT (twitter_id) DO UPDATE SET referral_code = $2`,
+        [twitterId, referralCode]
+      );
+    }
+
+    // Get list of referred users
+    const referrals = await pool.query(
+      `SELECT r.referred_twitter_id, r.referrer_bonus, r.status, r.created_at, r.converted_at,
+              s.username, s.total_points
+       FROM referrals r
+       LEFT JOIN scores s ON s.twitter_id = r.referred_twitter_id
+       WHERE r.referrer_twitter_id = $1
+       ORDER BY r.created_at DESC
+       LIMIT 50`,
+      [twitterId]
+    );
+
+    const data = {
+      referralCode,
+      referralBonusPoints,
+      referralCount,
+      referredBy,
+      maxBonus: MAX_REFERRAL_BONUS,
+      bonusPerReferral: REFERRAL_BONUS_REFERRER,
+      referredBonus: REFERRAL_BONUS_REFERRED,
+      referrals: referrals.rows.map(r => ({
+        username: r.username || 'anonymous',
+        bonus: r.referrer_bonus,
+        status: r.status,
+        totalPoints: r.total_points || 0,
+        createdAt: r.created_at,
+        convertedAt: r.converted_at,
+      })),
+    };
+
+    // Cache for 5 minutes
+    await redis.setEx(`referral:${twitterId}`, 300, JSON.stringify(data));
+    res.json(data);
+  } catch (err) {
+    console.error('Referral fetch error:', err.message);
+    res.status(500).json({ error: 'Failed to load referral data' });
+  }
+});
+
+// Apply a referral code — called when a new user signs up
+app.post('/auth/referral/apply', async (req, res) => {
+  const { twitterId, referralCode, username } = req.body;
+  if (!twitterId || !referralCode) return res.status(400).json({ error: 'twitterId and referralCode required' });
+
+  try {
+    // Check if user already used a referral code
+    const existing = await pool.query(
+      'SELECT referred_by FROM scores WHERE twitter_id = $1',
+      [twitterId]
+    );
+    if (existing.rows.length > 0 && existing.rows[0].referred_by) {
+      return res.status(400).json({ error: 'Already used a referral code' });
+    }
+
+    // Look up the referrer by their code
+    const referrer = await pool.query(
+      'SELECT twitter_id, username, referral_bonus_points, referral_count FROM scores WHERE referral_code = $1',
+      [referralCode.toUpperCase()]
+    );
+    if (referrer.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid referral code' });
+    }
+
+    const referrerRow = referrer.rows[0];
+
+    // Can't refer yourself
+    if (referrerRow.twitter_id === twitterId) {
+      return res.status(400).json({ error: 'Cannot use your own referral code' });
+    }
+
+    // Check referrer hasn't hit the bonus cap
+    const currentBonus = referrerRow.referral_bonus_points || 0;
+    const referrerBonus = Math.min(REFERRAL_BONUS_REFERRER, MAX_REFERRAL_BONUS - currentBonus);
+
+    // Begin transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Insert referral record
+      await client.query(
+        `INSERT INTO referrals (referrer_twitter_id, referred_twitter_id, referral_code, referrer_bonus, referred_bonus, status, converted_at)
+         VALUES ($1, $2, $3, $4, $5, 'converted', NOW())
+         ON CONFLICT (referred_twitter_id) DO NOTHING`,
+        [referrerRow.twitter_id, twitterId, referralCode.toUpperCase(), referrerBonus, REFERRAL_BONUS_REFERRED]
+      );
+
+      // Update referrer: add bonus points and increment count
+      if (referrerBonus > 0) {
+        await client.query(
+          `UPDATE scores SET
+            referral_bonus_points = COALESCE(referral_bonus_points, 0) + $2,
+            referral_count = COALESCE(referral_count, 0) + 1,
+            total_points = total_points + $2,
+            updated_at = NOW()
+           WHERE twitter_id = $1`,
+          [referrerRow.twitter_id, referrerBonus]
+        );
+      } else {
+        await client.query(
+          `UPDATE scores SET
+            referral_count = COALESCE(referral_count, 0) + 1,
+            updated_at = NOW()
+           WHERE twitter_id = $1`,
+          [referrerRow.twitter_id]
+        );
+      }
+
+      // Update referred user: mark who referred them + add their bonus
+      await client.query(
+        `INSERT INTO scores (twitter_id, username, referred_by, referral_bonus_points, total_points, referral_code)
+         VALUES ($1, $4, $2, $3, $3, $5)
+         ON CONFLICT (twitter_id) DO UPDATE SET
+           referred_by = $2,
+           referral_bonus_points = COALESCE(scores.referral_bonus_points, 0) + $3,
+           total_points = scores.total_points + $3,
+           updated_at = NOW()`,
+        [twitterId, referrerRow.twitter_id, REFERRAL_BONUS_REFERRED, username || null, generateReferralCode(twitterId)]
+      );
+
+      await client.query('COMMIT');
+
+      // Invalidate caches
+      await redis.del(`referral:${referrerRow.twitter_id}`);
+      await redis.del(`referral:${twitterId}`);
+      await redis.del(`scores:${referrerRow.twitter_id}`);
+      await redis.del(`scores:${twitterId}`);
+      await redis.del('leaderboard:top100');
+
+      console.log(`Referral: @${username || twitterId} used code ${referralCode} from @${referrerRow.username}. Referrer bonus: ${referrerBonus}, Referred bonus: ${REFERRAL_BONUS_REFERRED}`);
+
+      res.json({
+        success: true,
+        referrerBonus,
+        referredBonus: REFERRAL_BONUS_REFERRED,
+        referrerUsername: referrerRow.username,
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    if (err.message?.includes('Already used') || err.message?.includes('Invalid') || err.message?.includes('Cannot use')) {
+      throw err;
+    }
+    console.error('Referral apply error:', err.message);
+    res.status(500).json({ error: 'Failed to apply referral code' });
+  }
+});
+
+// Validate a referral code (lightweight check)
+app.get('/auth/referral/validate/:code', async (req, res) => {
+  const { code } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT username FROM scores WHERE referral_code = $1',
+      [code.toUpperCase()]
+    );
+    if (result.rows.length === 0) {
+      return res.json({ valid: false });
+    }
+    res.json({ valid: true, referrerUsername: result.rows[0].username });
+  } catch (err) {
+    console.error('Referral validate error:', err.message);
+    res.json({ valid: false });
+  }
+});
+
+// ─────────────────────────────────────────────
 //  ADMIN — Protected dashboard endpoints
 // ─────────────────────────────────────────────
 
@@ -727,15 +978,16 @@ function csvSafe(val) {
 // Admin: Reset database (truncate all tables)
 app.post('/admin/reset-db', requireAdmin, async (req, res) => {
   try {
-    await pool.query('TRUNCATE TABLE scores, wallets, users RESTART IDENTITY CASCADE');
+    await pool.query('TRUNCATE TABLE referrals, scores, wallets, users RESTART IDENTITY CASCADE');
     // Clear Redis caches
     if (redis) {
       try {
         await redis.del('leaderboard:top100');
-        // Also clear any lingering score/user keys
+        // Also clear any lingering score/user/referral keys
         const scoreKeys = await redis.keys('scores:*');
         const userKeys = await redis.keys('user:*');
-        const allKeys = [...scoreKeys, ...userKeys];
+        const refKeys = await redis.keys('referral:*');
+        const allKeys = [...scoreKeys, ...userKeys, ...refKeys];
         if (allKeys.length > 0) await redis.del(allKeys);
       } catch {}
     }
@@ -770,6 +1022,104 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Export error:', err.message);
     res.status(500).json({ error: 'Failed to export' });
+  }
+});
+
+// Admin: Referral stats & data
+app.get('/admin/referrals', requireAdmin, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const offset = parseInt(req.query.offset) || 0;
+  const search = req.query.search || '';
+
+  try {
+    // Overview stats
+    const overviewQuery = await pool.query(`
+      SELECT
+        COUNT(*) AS total_referrals,
+        COUNT(CASE WHEN status = 'converted' THEN 1 END) AS converted_referrals,
+        COALESCE(SUM(referrer_bonus), 0) AS total_referrer_bonus_issued,
+        COALESCE(SUM(referred_bonus), 0) AS total_referred_bonus_issued,
+        COUNT(DISTINCT referrer_twitter_id) AS unique_referrers
+      FROM referrals
+    `);
+
+    // Top referrers
+    const topReferrers = await pool.query(`
+      SELECT s.username, s.twitter_id, s.referral_code, s.referral_count, s.referral_bonus_points,
+             s.total_points, s.followers_count
+      FROM scores s
+      WHERE s.referral_count > 0
+      ORDER BY s.referral_count DESC
+      LIMIT 20
+    `);
+
+    // All referrals (paginated)
+    let refQuery, countQuery, params, countParams;
+    if (search) {
+      refQuery = `
+        SELECT r.*, rs.username AS referrer_username, ds.username AS referred_username
+        FROM referrals r
+        LEFT JOIN scores rs ON rs.twitter_id = r.referrer_twitter_id
+        LEFT JOIN scores ds ON ds.twitter_id = r.referred_twitter_id
+        WHERE rs.username ILIKE $3 OR ds.username ILIKE $3 OR r.referral_code ILIKE $3
+        ORDER BY r.created_at DESC
+        LIMIT $1 OFFSET $2
+      `;
+      countQuery = `
+        SELECT COUNT(*) FROM referrals r
+        LEFT JOIN scores rs ON rs.twitter_id = r.referrer_twitter_id
+        LEFT JOIN scores ds ON ds.twitter_id = r.referred_twitter_id
+        WHERE rs.username ILIKE $1 OR ds.username ILIKE $1 OR r.referral_code ILIKE $1
+      `;
+      params = [limit, offset, `%${search}%`];
+      countParams = [`%${search}%`];
+    } else {
+      refQuery = `
+        SELECT r.*, rs.username AS referrer_username, ds.username AS referred_username
+        FROM referrals r
+        LEFT JOIN scores rs ON rs.twitter_id = r.referrer_twitter_id
+        LEFT JOIN scores ds ON ds.twitter_id = r.referred_twitter_id
+        ORDER BY r.created_at DESC
+        LIMIT $1 OFFSET $2
+      `;
+      countQuery = `SELECT COUNT(*) FROM referrals`;
+      params = [limit, offset];
+      countParams = [];
+    }
+
+    const [refResult, refCountResult] = await Promise.all([
+      pool.query(refQuery, params),
+      pool.query(countQuery, countParams),
+    ]);
+
+    res.json({
+      overview: overviewQuery.rows[0],
+      topReferrers: topReferrers.rows.map(r => ({
+        username: r.username,
+        twitterId: r.twitter_id,
+        referralCode: r.referral_code,
+        referralCount: r.referral_count,
+        referralBonusPoints: r.referral_bonus_points,
+        totalPoints: r.total_points,
+        followersCount: r.followers_count,
+      })),
+      referrals: refResult.rows.map(r => ({
+        referrerUsername: r.referrer_username || r.referrer_twitter_id,
+        referredUsername: r.referred_username || r.referred_twitter_id,
+        referralCode: r.referral_code,
+        referrerBonus: r.referrer_bonus,
+        referredBonus: r.referred_bonus,
+        status: r.status,
+        createdAt: r.created_at,
+        convertedAt: r.converted_at,
+      })),
+      total: parseInt(refCountResult.rows[0].count),
+      limit,
+      offset,
+    });
+  } catch (err) {
+    console.error('Admin referrals error:', err.message);
+    res.status(500).json({ error: 'Failed to load referral data' });
   }
 });
 

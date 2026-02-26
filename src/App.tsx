@@ -20,6 +20,7 @@ export interface UserData {
 }
 
 const USER_PROFILE_KEY = 'realbet_user_profile';
+const REFERRAL_CODE_KEY = 'realbet_referral_code';
 
 function loadUserProfile(): Partial<UserData> | null {
   try {
@@ -34,6 +35,23 @@ function saveUserProfile(data: { twitterId: string; username: string; pfp: strin
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(data));
   } catch { /* ignore */ }
 }
+
+// Capture referral code from URL on first load
+function captureReferralCode() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get('ref');
+    if (refCode) {
+      localStorage.setItem(REFERRAL_CODE_KEY, refCode.toUpperCase());
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('ref');
+      window.history.replaceState({}, '', url.pathname + url.hash);
+    }
+  } catch { /* ignore */ }
+}
+
+captureReferralCode();
 
 function App() {
   const [screen, setScreen] = useState<Screen>('hero');

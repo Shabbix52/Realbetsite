@@ -1,8 +1,9 @@
-﻿import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
 import { getTierForFollowers, calculateAllocationDollars, calculateRewardSplit } from '../tierConfig';
+import { getApiUrl } from '../config';
 
 /* ── Stagger animation variants ── */
 const containerVariants = {
@@ -216,6 +217,112 @@ interface VIPScreenProps {
 const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
   const [shared, setShared] = useState(false);
 
+  // ── Referral state ──
+  const [referralCode, setReferralCode] = useState<string>('');
+  const [referralCount, setReferralCount] = useState(0);
+  const [referralBonusPoints, setReferralBonusPoints] = useState(0);
+  const [referralMaxBonus, setReferralMaxBonus] = useState(25000);
+  const [referralBonusPerRef, setReferralBonusPerRef] = useState(250);
+  const [referralReferredBonus, setReferralReferredBonus] = useState(150);
+  const [referrals, setReferrals] = useState<{ username: string; bonus: number; status: string; totalPoints: number }[]>([]);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [referralCodeInput, setReferralCodeInput] = useState(() => {
+    try {
+      return localStorage.getItem('realbet_referral_code') || '';
+    } catch { return ''; }
+  });
+  const [referralApplying, setReferralApplying] = useState(false);
+  const [referralApplyResult, setReferralApplyResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [referredBy, setReferredBy] = useState<string | null>(null);
+  const [showReferralDetails, setShowReferralDetails] = useState(false);
+
+  // Load referral data
+  useEffect(() => {
+    if (!userData.twitterId) return;
+    setReferralLoading(true);
+    fetch(getApiUrl(`/auth/referral/${userData.twitterId}`))
+      .then(r => r.json())
+      .then(data => {
+        if (data.referralCode) setReferralCode(data.referralCode);
+        setReferralCount(data.referralCount || 0);
+        setReferralBonusPoints(data.referralBonusPoints || 0);
+        setReferralMaxBonus(data.maxBonus || 25000);
+        setReferralBonusPerRef(data.bonusPerReferral || 250);
+        setReferralReferredBonus(data.referredBonus || 150);
+        setReferrals(data.referrals || []);
+        setReferredBy(data.referredBy || null);
+
+        // Auto-apply referral code from URL if user hasn't been referred yet
+        if (!data.referredBy && referralCodeInput.trim()) {
+          autoApplyReferral(referralCodeInput.trim());
+        }
+      })
+      .catch(() => {})
+      .finally(() => setReferralLoading(false));
+  }, [userData.twitterId]);
+
+  // Auto-apply a referral code (silent, from URL capture)
+  const autoApplyReferral = useCallback(async (code: string) => {
+    if (!userData.twitterId || !code) return;
+    setReferralApplying(true);
+    try {
+      const res = await fetch(getApiUrl('/auth/referral/apply'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          twitterId: userData.twitterId,
+          referralCode: code,
+          username: userData.username,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setReferralApplyResult({ success: true, message: `+${data.referredBonus} bonus pts from @${data.referrerUsername}!` });
+        setReferredBy(data.referrerUsername);
+        setReferralCodeInput('');
+        try { localStorage.removeItem('realbet_referral_code'); } catch { /* ignore */ }
+      }
+    } catch { /* silent fail for auto-apply */ }
+    setReferralApplying(false);
+  }, [userData.twitterId, userData.username]);
+
+  const handleCopyReferral = useCallback(() => {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    });
+  }, [referralCode]);
+
+  const handleApplyReferral = useCallback(async () => {
+    if (!referralCodeInput.trim() || referralApplying) return;
+    setReferralApplying(true);
+    setReferralApplyResult(null);
+    try {
+      const res = await fetch(getApiUrl('/auth/referral/apply'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          twitterId: userData.twitterId,
+          referralCode: referralCodeInput.trim(),
+          username: userData.username,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setReferralApplyResult({ success: true, message: `+${data.referredBonus} bonus pts from @${data.referrerUsername}!` });
+        setReferredBy(data.referrerUsername);
+        try { localStorage.removeItem('realbet_referral_code'); } catch { /* ignore */ }
+      } else {
+        setReferralApplyResult({ success: false, message: data.error || 'Failed to apply code' });
+      }
+    } catch {
+      setReferralApplyResult({ success: false, message: 'Network error — try again' });
+    }
+    setReferralApplying(false);
+  }, [referralCodeInput, referralApplying, userData.twitterId, userData.username]);
+
   // Spec calculations
   const powerScore = userData.totalPoints;
   const tier = getTierForFollowers(userData.followersCount);
@@ -277,7 +384,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             transition={{ delay: 0.5 }}
             className="text-brand-gold text-base sm:text-lg md:text-xl font-bold font-label mt-1 sm:mt-2"
           >
-            {displayPoints.toLocaleString()} Power Points
+            {displayPoints.toLocaleString()} Power Score
           </motion.p>
         </motion.div>
 
@@ -290,6 +397,180 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
 
           {/* Right Column: Info Panel */}
           <motion.div variants={itemVariants} className="flex-1 w-full max-w-sm mx-auto lg:mx-0 space-y-4 sm:space-y-6">
+            {/* ── REFERRAL SYSTEM ── */}
+            <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white/90">Refer Friends</p>
+                    <p className="text-[10px] text-white/50 font-label">Earn {referralBonusPerRef} pts per referral</p>
+                  </div>
+                </div>
+                {referralCount > 0 && (
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 font-label tracking-wider font-bold">
+                    {referralCount} REFERRED
+                  </span>
+                )}
+              </div>
+
+              {/* Referral stats bar */}
+              {referralCode && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[10px] font-label tracking-wider text-white/40">
+                    <span>BONUS EARNED</span>
+                    <span>{referralBonusPoints.toLocaleString()} / {referralMaxBonus.toLocaleString()} pts</span>
+                  </div>
+                  <div className="h-1.5 bg-rb-border/30 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: 'linear-gradient(90deg, #a855f7, #6366f1)' }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min((referralBonusPoints / referralMaxBonus) * 100, 100)}%` }}
+                      transition={{ duration: 0.8, delay: 0.2 }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Referral link */}
+              {referralCode && (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 px-3 py-2.5 rounded-lg bg-rb-card border border-rb-border text-xs font-label text-white/60 truncate">
+                    {window.location.origin}?ref={referralCode}
+                  </div>
+                  <button
+                    onClick={handleCopyReferral}
+                    className={`px-4 py-2.5 rounded-lg text-xs font-bold font-label tracking-wider transition-all flex-shrink-0 ${
+                      referralCopied
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/20'
+                    }`}
+                  >
+                    {referralCopied ? '✓ COPIED' : 'COPY'}
+                  </button>
+                </div>
+              )}
+
+              {/* Share referral on X */}
+              {referralCode && (
+                <button
+                  onClick={() => {
+                    const refLink = `${window.location.origin}?ref=${referralCode}`;
+                    const text = encodeURIComponent(
+                      `Join me on @RealBet Season 1! Use my referral link for bonus points 🎰\n\n${refLink}\n\n#RealBetSeason1`
+                    );
+                    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'width=550,height=420');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[#1DA1F2]/10 hover:bg-[#1DA1F2]/20 text-[#1DA1F2] text-xs font-bold font-label tracking-wider border border-[#1DA1F2]/10 transition-all"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  SHARE REFERRAL ON X
+                </button>
+              )}
+
+              {/* Apply referral code (only if not already referred) */}
+              {!referredBy && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-[10px] text-white/30 font-label tracking-wider">HAVE A REFERRAL CODE?</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={referralCodeInput}
+                      onChange={e => setReferralCodeInput(e.target.value.toUpperCase())}
+                      placeholder="Enter code (e.g. RB1A2B3C)"
+                      maxLength={10}
+                      className="flex-1 px-3 py-2.5 rounded-lg bg-rb-card border border-rb-border text-white text-xs font-label focus:outline-none focus:border-purple-500/40 placeholder:text-rb-muted/30"
+                    />
+                    <button
+                      onClick={handleApplyReferral}
+                      disabled={referralApplying || !referralCodeInput.trim()}
+                      className="px-4 py-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-bold font-label tracking-wider border border-purple-500/20 transition-all disabled:opacity-40"
+                    >
+                      {referralApplying ? (
+                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      ) : 'APPLY'}
+                    </button>
+                  </div>
+                  {referralApplyResult && (
+                    <p className={`text-xs font-label ${referralApplyResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                      {referralApplyResult.message}
+                    </p>
+                  )}
+                </div>
+              )}
+              {referredBy && (
+                <p className="text-[10px] text-green-400/60 font-label tracking-wider">
+                  ✓ Referred by @{referredBy} — +{referralReferredBonus} bonus pts
+                </p>
+              )}
+
+              {/* Referred users list (expandable) */}
+              {referralCount > 0 && (
+                <div>
+                  <button
+                    onClick={() => setShowReferralDetails(!showReferralDetails)}
+                    className="flex items-center gap-1.5 text-[10px] text-white/40 font-label tracking-wider hover:text-white/60 transition-colors"
+                  >
+                    <svg
+                      className={`w-3 h-3 transition-transform ${showReferralDetails ? 'rotate-90' : ''}`}
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    >
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
+                    VIEW YOUR REFERRALS ({referralCount})
+                  </button>
+                  <AnimatePresence>
+                    {showReferralDetails && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-3 space-y-1.5">
+                          {referrals.map((ref, i) => (
+                            <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.02] border border-rb-border/20">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs text-white/60 font-label truncate">@{ref.username}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-label tracking-wider ${
+                                  ref.status === 'converted' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                }`}>
+                                  {ref.status === 'converted' ? 'ACTIVE' : 'PENDING'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-purple-400 font-label font-bold">+{ref.bonus}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Loading state */}
+              {referralLoading && !referralCode && (
+                <div className="flex items-center justify-center py-2">
+                  <svg className="w-5 h-5 animate-spin text-purple-400/50" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                </div>
+              )}
+            </div>
+
             {/* Power Score + Allocation Panel */}
             <div className="glass-panel rounded-2xl p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4">
@@ -374,13 +655,6 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                     </div>
                     <p className="text-brand-gold text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
                       {split.realPoints.toLocaleString()}
-                    </p>
-                  </div>
-
-                  {/* Total Cash Allocation */}
-                  <div className="text-center pt-2">
-                    <p className="text-white/40 text-[10px] font-label">
-                      Max Cash Allocation: <span className="text-white/60">${split.totalCash.toLocaleString()}</span> • REAL Points: no cap
                     </p>
                   </div>
                 </motion.div>

@@ -90,8 +90,8 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
             Season 1
           </p>
           <h2 className="font-display text-4xl md:text-5xl font-bold tracking-tight uppercase mb-2">
-            Real Points{' '}
-            <span className="text-brand-gold">Leaderboard</span>
+            The Owner's{' '}
+            <span className="text-brand-gold">Table</span>
           </h2>
           <p className="text-rb-muted/50 text-sm font-label">
             Top performers earn the Season 1 Airdrop

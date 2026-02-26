@@ -149,7 +149,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const [discordVerified, setDiscordVerified] = useState(() => savedAuth?.discordVerified ?? false);
   const [discordUserId, setDiscordUserId] = useState<string | null>(() => savedAuth?.discordUserId ?? null);
   const [taskLoading, setTaskLoading] = useState<string | null>(null);
-  const [followCountdown, setFollowCountdown] = useState<number>(0);
+  const [followVerifying, setFollowVerifying] = useState<boolean>(false);
   const [discordError, setDiscordError] = useState<string | null>(null);
   const [allDone, setAllDone] = useState(() => {
     const gold = initialBoxes.find(b => b.type === 'gold');
@@ -325,20 +325,14 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           setTaskLoading(null);
         });
       } else if (!tasks.follow) {
-        // Already verified — Step 2: Open follow intent and start countdown
+        // Already verified — Step 2: Open follow intent and show spinner
         const targetUsername = 'Realbet'; // matches TWITTER_TARGET_USERNAME
         window.open(`https://twitter.com/intent/follow?screen_name=${targetUsername}`, '_blank');
-        setFollowCountdown(10);
-        const countdownTimer = setInterval(() => {
-          setFollowCountdown(prev => {
-            if (prev <= 1) {
-              clearInterval(countdownTimer);
-              setTasks(p => ({ ...p, follow: true }));
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+        setFollowVerifying(true);
+        setTimeout(() => {
+          setFollowVerifying(false);
+          setTasks(p => ({ ...p, follow: true }));
+        }, 3000);
       }
       return;
     }
@@ -482,7 +476,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
               {/* Description */}
               <p className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md">
-                Each box reveals points. Points convert to Season 1 credit.
+                Each box reveals a score. Scores convert to Season 1 Credits called REAL points. <br />Good luck, you'll need it here.
               </p>
 
               {/* Boxes Grid — only bronze & silver */}
@@ -629,7 +623,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               {/* Heading */}
               <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-2 sm:mb-3 tracking-tight uppercase">
                 Unlock{' '}
-                <span className="text-brand-gold">Gold Box</span>
+                <span className="text-brand-gold">Gold Mystery Box</span>
               </h2>
 
               {/* Description */}
@@ -640,7 +634,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               {/* Progress bar */}
               <div className="mb-5 sm:mb-8">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-label text-[10px] tracking-wider text-white/60">Gold Box Unlock</span>
+                  <span className="font-label text-[10px] tracking-wider text-white/60">Gold Mystery Box Unlock</span>
                   <span className="font-label text-[10px] tracking-wider text-white/60">{completedTasks}/2 completed</span>
                 </div>
                 <div className="h-1 bg-rb-border rounded-full overflow-hidden">
@@ -669,32 +663,31 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     </div>
                     <div>
                       <p className="text-sm font-bold tracking-wider text-white/90">
-                        {!twitterVerified ? 'Connect & Follow @RealBet' : 'Follow @RealBet'}
+                        {!twitterVerified ? 'Connect & Follow @Realbet' : 'Follow @Realbet'}
                       </p>
                       <p className="text-xs text-brand-gold/60 font-label">+500 bonus points</p>
-                      {twitterVerified && !tasks.follow && followCountdown === 0 && (
+                      {twitterVerified && !tasks.follow && !followVerifying && (
                         <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Connected — tap Follow to continue</p>
                       )}
-                      {followCountdown > 0 && (
-                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Verifying... {followCountdown}s</p>
+                      {followVerifying && (
+                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Verifying follow...</p>
                       )}
                     </div>
                   </div>
                   <button
-                    onClick={() => !tasks.follow && followCountdown === 0 && handleTask('follow')}
-                    disabled={tasks.follow || taskLoading === 'follow' || followCountdown > 0}
+                    onClick={() => !tasks.follow && !followVerifying && handleTask('follow')}
+                    disabled={tasks.follow || taskLoading === 'follow' || followVerifying}
                     className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all ${
                       tasks.follow
                         ? 'bg-green-500/20 text-green-400 cursor-default'
-                        : followCountdown > 0
+                        : followVerifying
                         ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 cursor-wait'
                         : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer'
                     } ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
                   >
-                    {taskLoading === 'follow'
+                    {(taskLoading === 'follow' || followVerifying)
                       ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                       : tasks.follow ? 'DONE'
-                      : followCountdown > 0 ? `${followCountdown}s`
                       : twitterVerified ? 'FOLLOW'
                       : 'CONNECT'}
                   </button>
@@ -802,7 +795,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               {/* Heading */}
               <h2 className="font-display text-4xl sm:text-5xl md:text-7xl font-bold mb-3 sm:mb-4 tracking-tight uppercase">
                 The{' '}
-                <span className="text-brand-gold">Gold Box</span>
+                <span className="text-brand-gold">Gold Mystery Box</span>
               </h2>
 
               {/* Description */}
@@ -922,7 +915,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     }}
                   >
                     <span className="relative z-10 flex items-center justify-center gap-3">
-                      CONTINUE TO VIP CARD
+                      Unlock with your VIP Card
                       <svg className="w-4 h-4 opacity-60 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="m9 18 6-6-6-6" />
                       </svg>

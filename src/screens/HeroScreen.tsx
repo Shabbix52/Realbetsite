@@ -86,9 +86,8 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="font-mono text-sm text-rb-muted max-w-md mb-10 leading-relaxed"
         >
-          Claim your ID. Choose your box. Walk the path to gold.<br />
-          No second chances.
-        </motion.p>
+          The realest house is watching who moves first this season.<br />
+          Choose your boxes. Crack them open. And be a VIP of the house you'll own.</motion.p>
 
         {/* CTA */}
         <motion.button
@@ -99,7 +98,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           disabled={loading}
           className={`btn-fight pulse-glow text-lg ${loading ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
-          {loading ? 'Connecting...' : 'Enter the Arena →'}
+          {loading ? 'Connecting...' : 'Open Mystery Box →'}
         </motion.button>
       </div>
 

@@ -45,7 +45,45 @@ interface AdminUsersResponse {
   offset: number;
 }
 
-type Tab = 'overview' | 'users';
+type Tab = 'overview' | 'users' | 'referrals';
+
+interface AdminReferralOverview {
+  total_referrals: string;
+  converted_referrals: string;
+  total_referrer_bonus_issued: string;
+  total_referred_bonus_issued: string;
+  unique_referrers: string;
+}
+
+interface AdminTopReferrer {
+  username: string;
+  twitterId: string;
+  referralCode: string;
+  referralCount: number;
+  referralBonusPoints: number;
+  totalPoints: number;
+  followersCount: number;
+}
+
+interface AdminReferral {
+  referrerUsername: string;
+  referredUsername: string;
+  referralCode: string;
+  referrerBonus: number;
+  referredBonus: number;
+  status: string;
+  createdAt: string;
+  convertedAt: string | null;
+}
+
+interface AdminReferralsData {
+  overview: AdminReferralOverview;
+  topReferrers: AdminTopReferrer[];
+  referrals: AdminReferral[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 function formatDollars(n: number | string): string {
   const num = typeof n === 'string' ? parseFloat(n) : n;
@@ -80,6 +118,9 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
   const [page, setPage] = useState(0);
   const [resetting, setResetting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [referralsData, setReferralsData] = useState<AdminReferralsData | null>(null);
+  const [refSearch, setRefSearch] = useState('');
+  const [refPage, setRefPage] = useState(0);
 
   const headers = { 'x-admin-key': adminKey };
 
@@ -138,11 +179,30 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
     setLoading(false);
   }, [adminKey, page, sort, search]);
 
+  const fetchReferrals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        limit: '50',
+        offset: String(refPage * 50),
+        ...(refSearch ? { search: refSearch } : {}),
+      });
+      const res = await fetch(getApiUrl(`/admin/referrals?${params}`), { headers });
+      if (!res.ok) throw new Error();
+      setReferralsData(await res.json());
+      setError(null);
+    } catch {
+      setError('Failed to load referrals');
+    }
+    setLoading(false);
+  }, [adminKey, refPage, refSearch]);
+
   useEffect(() => {
     if (!authenticated) return;
     if (tab === 'overview') fetchStats();
-    else fetchUsers();
-  }, [tab, authenticated, page, sort]);
+    else if (tab === 'users') fetchUsers();
+    else if (tab === 'referrals') fetchReferrals();
+  }, [tab, authenticated, page, sort, refPage]);
 
   const handleLogin = async () => {
     const ok = await authenticate(keyInput);
@@ -305,7 +365,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6">
-          {(['overview', 'users'] as Tab[]).map(t => (
+          {(['overview', 'users', 'referrals'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -490,6 +550,156 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                       Next →
                     </button>
                   </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ══ REFERRALS TAB ══ */}
+        {tab === 'referrals' && (
+          <div className="space-y-6">
+            {/* Referral overview cards */}
+            {referralsData && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {[
+                    { label: 'Total Referrals', value: formatNum(referralsData.overview.total_referrals), color: 'text-white' },
+                    { label: 'Converted', value: formatNum(referralsData.overview.converted_referrals), color: 'text-green-400' },
+                    { label: 'Unique Referrers', value: formatNum(referralsData.overview.unique_referrers), color: 'text-purple-400' },
+                    { label: 'Referrer Bonus Issued', value: formatNum(referralsData.overview.total_referrer_bonus_issued) + ' pts', color: 'text-brand-gold' },
+                    { label: 'Referred Bonus Issued', value: formatNum(referralsData.overview.total_referred_bonus_issued) + ' pts', color: 'text-blue-400' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="glass-panel rounded-xl p-4">
+                      <p className="font-label text-[10px] tracking-wider text-rb-muted/40 uppercase mb-1">{stat.label}</p>
+                      <p className={`text-xl font-bold font-label ${stat.color}`}>{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Top Referrers */}
+                {referralsData.topReferrers.length > 0 && (
+                  <div className="glass-panel rounded-xl p-5">
+                    <p className="font-label text-[10px] tracking-wider text-rb-muted/40 uppercase mb-4">Top Referrers</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-[10px] font-label tracking-wider text-rb-muted/30 uppercase border-b border-rb-border/30">
+                            <th className="text-left py-2 px-3">#</th>
+                            <th className="text-left py-2 px-3">Username</th>
+                            <th className="text-left py-2 px-3">Code</th>
+                            <th className="text-right py-2 px-3">Referrals</th>
+                            <th className="text-right py-2 px-3">Bonus Pts</th>
+                            <th className="text-right py-2 px-3">Total Pts</th>
+                            <th className="text-right py-2 px-3">Followers</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {referralsData.topReferrers.map((r, i) => (
+                            <tr key={r.twitterId} className="border-b border-rb-border/10 hover:bg-white/[0.02] transition-colors">
+                              <td className="py-2.5 px-3 font-label text-rb-muted/40">{i + 1}</td>
+                              <td className="py-2.5 px-3">
+                                <a href={`https://x.com/${r.username}`} target="_blank" rel="noopener noreferrer" className="text-[#1DA1F2] hover:underline font-label font-bold">
+                                  @{r.username}
+                                </a>
+                              </td>
+                              <td className="py-2.5 px-3 font-label text-purple-400/70 text-xs">{r.referralCode}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-white font-bold">{r.referralCount}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-brand-gold">{r.referralBonusPoints.toLocaleString()}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-rb-muted/60">{r.totalPoints.toLocaleString()}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-rb-muted/50">{r.followersCount.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* All Referrals */}
+                <div className="space-y-4">
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <form onSubmit={(e) => { e.preventDefault(); setRefPage(0); fetchReferrals(); }} className="flex-1">
+                      <input
+                        type="text"
+                        value={refSearch}
+                        onChange={(e) => setRefSearch(e.target.value)}
+                        placeholder="Search by username or code..."
+                        className="w-full px-4 py-2.5 rounded-xl bg-rb-card border border-rb-border text-white text-sm font-label focus:outline-none focus:border-purple-500/40 placeholder:text-rb-muted/30"
+                      />
+                    </form>
+                  </div>
+
+                  <div className="glass-panel rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-[10px] font-label tracking-wider text-rb-muted/30 uppercase border-b border-rb-border/30">
+                            <th className="text-left py-3 px-4">Referrer</th>
+                            <th className="text-left py-3 px-4">Referred</th>
+                            <th className="text-left py-3 px-4">Code</th>
+                            <th className="text-right py-3 px-4">Referrer Bonus</th>
+                            <th className="text-right py-3 px-4">Referred Bonus</th>
+                            <th className="text-center py-3 px-4">Status</th>
+                            <th className="text-right py-3 px-4">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {referralsData.referrals.map((ref, i) => (
+                            <tr key={i} className="border-b border-rb-border/10 hover:bg-white/[0.02] transition-colors">
+                              <td className="py-2.5 px-4 font-label font-bold text-[#1DA1F2]">@{ref.referrerUsername}</td>
+                              <td className="py-2.5 px-4 font-label text-white/70">@{ref.referredUsername}</td>
+                              <td className="py-2.5 px-4 font-label text-purple-400/70 text-xs">{ref.referralCode}</td>
+                              <td className="py-2.5 px-4 text-right font-label text-brand-gold">+{ref.referrerBonus}</td>
+                              <td className="py-2.5 px-4 text-right font-label text-blue-400">+{ref.referredBonus}</td>
+                              <td className="py-2.5 px-4 text-center">
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-label tracking-wider ${
+                                  ref.status === 'converted' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                }`}>
+                                  {ref.status.toUpperCase()}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-4 text-right text-xs text-rb-muted/40 font-label">
+                                {new Date(ref.createdAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                          {referralsData.referrals.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-rb-muted/40 text-sm font-label">
+                                No referrals yet
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Pagination */}
+                  {referralsData.total > 0 && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-rb-muted/30 text-xs font-label">
+                        Showing {referralsData.offset + 1}–{Math.min(referralsData.offset + referralsData.limit, referralsData.total)} of {referralsData.total}
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setRefPage(p => Math.max(0, p - 1))}
+                          disabled={refPage === 0}
+                          className="px-3 py-1.5 rounded-lg bg-rb-card border border-rb-border text-xs font-label text-rb-muted/50 hover:text-white disabled:opacity-30 transition-colors"
+                        >
+                          ← Prev
+                        </button>
+                        <button
+                          onClick={() => setRefPage(p => p + 1)}
+                          disabled={referralsData.offset + referralsData.limit >= referralsData.total}
+                          className="px-3 py-1.5 rounded-lg bg-rb-card border border-rb-border text-xs font-label text-rb-muted/50 hover:text-white disabled:opacity-30 transition-colors"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
