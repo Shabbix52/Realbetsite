@@ -210,7 +210,8 @@ app.get('/auth/twitter', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   const { verifier, challenge } = generatePKCE();
 
-  oauthStore.set(state, { verifier, provider: 'twitter', created: Date.now() });
+  const isMobileRedirect = req.query.return_mobile === '1';
+  oauthStore.set(state, { verifier, provider: 'twitter', created: Date.now(), isMobileRedirect });
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -262,7 +263,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Twitter token error:', err);
-      return sendResultPage(res, false, 'twitter', 'Token exchange failed');
+      return sendResult(res, false, 'twitter', 'Token exchange failed', null, stored.isMobileRedirect);
     }
 
     const tokenData = await tokenRes.json();
@@ -288,17 +289,17 @@ app.get('/auth/twitter/callback', async (req, res) => {
     await redis.setEx(`user:twitter:${user.id}`, 86400, JSON.stringify({ dbId, username: user.username, followersCount }));
     console.log(`Twitter user @${user.username} (${followersCount} followers) saved (db id: ${dbId}, login #${loginCount})`);
 
-    sendResultPage(res, true, 'twitter', null, {
+    sendResult(res, true, 'twitter', null, {
       id: user.id,
       username: user.username,
       name: user.name,
       avatar: user.profile_image_url,
       followersCount,
       isNewUser: loginCount === 1,
-    });
+    }, stored.isMobileRedirect);
   } catch (err) {
     console.error('Twitter OAuth error:', err);
-    sendResultPage(res, false, 'twitter', 'OAuth flow failed');
+    sendResult(res, false, 'twitter', 'OAuth flow failed', null, stored.isMobileRedirect);
   }
 });
 
@@ -309,7 +310,8 @@ app.get('/auth/twitter/callback', async (req, res) => {
 // Step 1: Redirect user to Discord authorization
 app.get('/auth/discord', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  oauthStore.set(state, { provider: 'discord', created: Date.now() });
+  const isMobileRedirect = req.query.return_mobile === '1';
+  oauthStore.set(state, { provider: 'discord', created: Date.now(), isMobileRedirect });
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -354,7 +356,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Discord token error:', err);
-      return sendResultPage(res, false, 'discord', 'Token exchange failed');
+      return sendResult(res, false, 'discord', 'Token exchange failed', null, stored.isMobileRedirect);
     }
 
     const tokenData = await tokenRes.json();
@@ -381,15 +383,15 @@ app.get('/auth/discord/callback', async (req, res) => {
     await redis.setEx(`user:discord:${userData.id}`, 86400, JSON.stringify({ dbId, username: userData.username }));
     console.log(`Discord user ${userData.username} saved (db id: ${dbId})`);
 
-    sendResultPage(res, true, 'discord', null, {
+    sendResult(res, true, 'discord', null, {
       id: userData.id,
       username: userData.username,
       globalName: userData.global_name,
       avatar: avatarUrl,
-    });
+    }, stored.isMobileRedirect);
   } catch (err) {
     console.error('Discord OAuth error:', err);
-    sendResultPage(res, false, 'discord', 'OAuth flow failed');
+    sendResult(res, false, 'discord', 'OAuth flow failed', null, stored.isMobileRedirect);
   }
 });
 
@@ -1272,6 +1274,16 @@ app.get('/admin/referrals', requireAdmin, async (req, res) => {
 // ─────────────────────────────────────────────
 //  Result page — sends postMessage to opener & closes popup
 // ─────────────────────────────────────────────
+
+// Unified result dispatcher: popup (desktop) vs full-page redirect (mobile)
+function sendResult(res, success, provider, error, user, isMobileRedirect) {
+  if (isMobileRedirect) {
+    const payload = { success, provider, error: error || null, user: user || null };
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return res.redirect(`${CLIENT_URL}?ob=${encoded}`);
+  }
+  sendResultPage(res, success, provider, error, user);
+}
 
 function sendResultPage(res, success, provider, error = null, user = null) {
   const payload = { success, provider, error, user };

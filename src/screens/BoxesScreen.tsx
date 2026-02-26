@@ -160,6 +160,35 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   const { openOAuth } = useOAuthPopup();
 
+  // On mount: if twitterId is already set (from saved state or mobile OAuth redirect return),
+  // sync scores + Discord linkage from DB — the OAuth callback won't fire in these cases.
+  useEffect(() => {
+    const tid = savedAuth?.twitterId;
+    if (!tid) return;
+    fetch(getApiUrl(`/auth/scores/${tid}`))
+      .then(r => r.json())
+      .then(data => {
+        if (!data) return;
+        if (data.boxes) {
+          const hasPoints = data.boxes.some((b: any) => b.points > 0);
+          if (hasPoints) {
+            setBoxes(data.boxes);
+            saveBoxes(data.boxes);
+            setSubScreen(deriveSubScreen(data.boxes));
+            const goldDone = data.boxes.find((b: any) => b.type === 'gold')?.state === 'revealed';
+            if (goldDone) setAllDone(true);
+          }
+        }
+        if (data.followersCount) setFollowersCount(data.followersCount);
+        if (data.discordId) {
+          setDiscordVerified(true);
+          setDiscordUserId(data.discordId);
+          setTasks(p => ({ ...p, discord: true }));
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Persist auth state to localStorage whenever it changes
   useEffect(() => {
     saveAuthState({
@@ -360,7 +389,15 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       } else if (!tasks.follow) {
         // Already verified — Step 2: Open follow intent and show spinner
         const targetUsername = 'Realbet'; // matches TWITTER_TARGET_USERNAME
-        window.open(`https://twitter.com/intent/follow?screen_name=${targetUsername}`, '_blank');
+        const followUrl = `https://twitter.com/intent/follow?screen_name=${targetUsername}`;
+        // Use anchor click as primary method — more reliable than window.open on mobile Safari
+        const a = document.createElement('a');
+        a.href = followUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         setFollowVerifying(true);
         setTimeout(() => {
           setFollowVerifying(false);

@@ -39,14 +39,22 @@ function clearOAuthResult() {
 /**
  * Robust OAuth popup hook.
  * 
- * Primary channel: postMessage (cross-origin safe — server sends inline HTML with postMessage).
- * Backup channel: localStorage (written by oauth-callback.html iframe fallback).
+ * Desktop: Opens a popup window. Primary channel: postMessage. Backup: localStorage via iframe.
+ * Mobile: Full-page redirect to OAuth URL. Result is decoded by App.tsx on return.
  * 
  * IMPORTANT: popup.closed is unreliable when the popup navigates cross-origin
  * (twitter.com, discord.com) — browsers may report closed=true while it's still open.
  * So we DON'T check popup.closed at all for the first 30 seconds,
  * and we ALWAYS accept postMessage even after "giving up."
  */
+
+function isMobile(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    // iPad in desktop mode reports as Mac with touch support
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+}
+
 export function useOAuthPopup() {
   const callbackRef = useRef<OAuthCallback | null>(null);
   const firedRef = useRef(false);
@@ -98,6 +106,14 @@ export function useOAuthPopup() {
     callbackRef.current = onResult;
     firedRef.current = false;
     clearOAuthResult();
+
+    // ── Mobile: full-page redirect (popups are blocked on iOS/Android) ──
+    if (isMobile()) {
+      // Callback won't fire — App.tsx processes the ?ob= return param instead
+      callbackRef.current = null;
+      window.location.href = getApiUrl(`/auth/${provider}?return_mobile=1`);
+      return;
+    }
 
     const width = 500;
     const height = 700;
