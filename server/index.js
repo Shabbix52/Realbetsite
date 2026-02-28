@@ -1051,9 +1051,8 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
       SELECT
         COUNT(*) AS total_users,
         SUM(total_points) AS total_points_issued,
-        FLOOR(SUM(total_points) * 0.03) AS total_dollar_headline,
-        FLOOR(SUM(total_points * 0.30 / 20)) AS total_freeplay_exposure,
-        FLOOR(SUM(total_points * 0.30 / 20)) AS total_deposit_match_exposure,
+        FLOOR(SUM(total_points) / 20) AS total_dollar_headline,
+        FLOOR(SUM(total_points * 0.60 / 20)) AS total_freeplay_exposure,
         FLOOR(SUM(total_points * 0.40)) AS total_real_points,
         AVG(total_points)::INTEGER AS avg_points,
         MAX(total_points) AS max_points,
@@ -1078,7 +1077,7 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
         END AS tier,
         COUNT(*) AS count,
         SUM(total_points) AS total_pts,
-        FLOOR(SUM(total_points * 0.30 / 20)) AS cash_exposure
+        FLOOR(SUM(total_points * 0.60 / 20)) AS cash_exposure
       FROM scores
       WHERE total_points > 0
       GROUP BY tier
@@ -1194,16 +1193,15 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
     const result = await pool.query(
       `SELECT twitter_id, username, followers_count, bronze_points, silver_points, gold_points,
               total_points, FLOOR(total_points * 0.4) AS real_points,
-              ROUND(total_points * 0.30 / 20, 2) AS freeplay_dollars,
-              ROUND(total_points * 0.30 / 20, 2) AS deposit_match_dollars,
+              ROUND(total_points * 0.60 / 20, 2) AS freeplay_dollars,
               share_post_url, shared_at,
               created_at, updated_at
        FROM scores ORDER BY total_points DESC`
     );
 
-    const header = 'twitter_id,username,followers,bronze_pts,silver_pts,gold_pts,total_pts,real_pts,freeplay_$,deposit_match_$,shared,share_post_url,created,updated\n';
+    const header = 'twitter_id,username,followers,bronze_pts,silver_pts,gold_pts,total_pts,real_pts,freeplay_$,shared,share_post_url,created,updated\n';
     const rows = result.rows.map(r =>
-      [r.twitter_id, csvSafe(r.username), r.followers_count, r.bronze_points, r.silver_points, r.gold_points, r.total_points, r.real_points, r.freeplay_dollars, r.deposit_match_dollars, r.shared_at ? 'yes' : 'no', csvSafe(r.share_post_url), r.created_at, r.updated_at].join(',')
+      [r.twitter_id, csvSafe(r.username), r.followers_count, r.bronze_points, r.silver_points, r.gold_points, r.total_points, r.real_points, r.freeplay_dollars, r.shared_at ? 'yes' : 'no', csvSafe(r.share_post_url), r.created_at, r.updated_at].join(',')
     ).join('\n');
 
     res.setHeader('Content-Type', 'text/csv');

@@ -497,7 +497,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             transition={{ delay: 0.5 }}
             className="text-brand-gold text-sm sm:text-lg md:text-xl font-bold font-label mt-1 sm:mt-2"
           >
-            {displayPoints.toLocaleString()} Power Score
+            {displayPoints.toLocaleString()} Power Points
           </motion.p>
         </motion.div>
 
@@ -685,12 +685,12 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               )}
             </div>
 
-            {/* Power Score + Allocation Panel */}
+            {/* Power Points + Allocation Panel */}
             <div className="glass-panel rounded-2xl p-4 sm:p-6">
               <div className="flex flex-row items-center justify-between gap-2">
                 <div>
                   <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-1 sm:mb-2">
-                    Power Score
+                    Power Points
                   </p>
                   <p className="text-2xl sm:text-4xl font-bold font-label text-white">
                     {powerScore.toLocaleString()}
@@ -724,7 +724,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                     Reward Breakdown
                   </p>
 
-                  {/* Free Play (30%) */}
+                  {/* Wager Bonus (60%) */}
                   <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
@@ -737,22 +737,6 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
                     </div>
                     <p className="text-green-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
                       ${split.freePlay.dollars.toLocaleString()}
-                    </p>
-                  </div>
-
-                  {/* Deposit Match (30%) */}
-                  <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-blue-400 text-sm">💰</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-white/90">Deposit Match</p>
-                        <p className="text-[10px] text-white/50 font-label">{split.depositMatch.wager}x playthrough</p>
-                      </div>
-                    </div>
-                    <p className="text-blue-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
-                      ${split.depositMatch.dollars.toLocaleString()}
                     </p>
                   </div>
 
@@ -779,8 +763,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
             {!shared && (
               <div className="space-y-2 px-1">
                 {[
-                  'Up to 30% as Free Play wager bonus',
-                  'Up to 30% as Deposit Match',
+                  'Up to 60% as Wager Bonus (15x playthrough)',
                   '40% as REAL Points → Leaderboard → Airdrop',
                 ].map((perk) => (
                   <div key={perk} className="flex items-center gap-3">
@@ -833,7 +816,7 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
               )}
               {shared && (
                 <p className="text-center text-[10px] text-white/50 tracking-widest font-label">
-                  Free Play: {split.freePlay.wager}x playthrough • Deposit Match: {split.depositMatch.wager}x playthrough
+                  Wager Bonus: {split.freePlay.wager}x playthrough
                 </p>
               )}
             </div>

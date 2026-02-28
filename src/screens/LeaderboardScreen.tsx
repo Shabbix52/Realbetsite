@@ -139,7 +139,7 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
               <span className="w-12">Rank</span>
               <span className="flex-1">Player</span>
               <span className="w-28 text-right">Followers</span>
-              <span className="w-32 text-right">Power Score</span>
+              <span className="w-32 text-right">Power Points</span>
               <span className="w-28 text-right">Real Points</span>
             </div>
 
@@ -211,7 +211,7 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
                         </span>
                       </div>
 
-                      {/* Power Score */}
+                      {/* Power Points */}
                       <div className="md:w-32 md:text-right flex-shrink-0">
                         <span className={`text-sm font-bold font-label ${isTop3 ? 'text-white' : 'text-white/70'}`}>
                           <span className="md:hidden text-rb-muted/25 text-xs font-normal mr-1">Power:</span>
@@ -243,7 +243,7 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
         {/* Footer note */}
         <div className="text-center mt-8">
           <p className="text-rb-muted/20 text-[10px] font-label tracking-wider">
-            REAL Points = 40% of Power Score • Rankings update in real-time • Top players earn the Season 1 Airdrop
+            REAL Points = 40% of Power Points • Rankings update in real-time • Top players earn the Season 1 Airdrop
           </p>
         </div>
       </div>
