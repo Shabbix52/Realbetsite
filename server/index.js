@@ -801,8 +801,8 @@ app.get('/auth/leaderboard', async (req, res) => {
 //  REFERRAL SYSTEM — Generate codes, track referrals, award bonuses
 // ─────────────────────────────────────────────
 
-const REFERRAL_BONUS_REFERRER = 250;  // Points awarded to referrer per successful referral
-const REFERRAL_BONUS_REFERRED = 150;  // Points awarded to the referred user
+const REFERRAL_BONUS_REFERRER = 5;  // Points awarded to referrer per successful referral
+const REFERRAL_BONUS_REFERRED = 0;  // Points awarded to the referred user
 const MAX_REFERRAL_BONUS = 25000;     // Cap total referral bonus per user
 
 // Generate a unique referral code from twitter_id
