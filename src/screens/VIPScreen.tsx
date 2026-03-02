@@ -212,9 +212,10 @@ const LockIcon = ({ className }: { className?: string }) => (
 interface VIPScreenProps {
   userData: UserData;
   onLeaderboard?: () => void;
+  onLogout?: () => void;
 }
 
-const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
+const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
   // Persist share state per twitterId so it survives refreshes/re-logins
   const sharedKey = userData.twitterId ? `realbet_shared_${userData.twitterId}` : null;
   const [shared, setShared] = useState(() => {
@@ -470,6 +471,18 @@ const VIPScreen = ({ userData, onLeaderboard }: VIPScreenProps) => {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Logout button — top-right corner */}
+      {onLogout && (
+        <div className="w-full max-w-4xl mx-auto flex justify-end pt-4 sm:pt-6">
+          <button
+            onClick={onLogout}
+            className="px-3 py-1.5 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 hover:text-white transition-colors"
+          >
+            LOG OUT
+          </button>
+        </div>
+      )}
+
       <motion.div
         variants={containerVariants}
         initial="hidden"

@@ -271,12 +271,19 @@ app.get('/auth/twitter/callback', async (req, res) => {
 
     const tokenData = await tokenRes.json();
 
-    // Fetch user profile
-    const userRes = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,public_metrics', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
-
-    const userData = await userRes.json();
+    // Fetch user profile (with retry for transient Twitter API errors)
+    let userRes, userData;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      userRes = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,public_metrics', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      userData = await userRes.json();
+      if (userRes.ok && userData.data) break;
+      if (userRes.status >= 500 && attempt < 2) {
+        console.warn(`Twitter API ${userRes.status} — retrying in ${(attempt + 1)}s (attempt ${attempt + 1}/3)`);
+        await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
+      }
+    }
     if (!userRes.ok || !userData.data) {
       console.error('Twitter user fetch failed:', userRes.status, JSON.stringify(userData));
       return sendResult(res, false, 'twitter', `User fetch failed (${userRes.status}): ${userData?.detail || userData?.title || 'Unknown error'}`, null, stored.isMobileRedirect);

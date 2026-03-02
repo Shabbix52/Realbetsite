@@ -160,6 +160,15 @@ function App() {
     setScreen('vip');
   }, []);
 
+  const handleLogout = useCallback(() => {
+    try {
+      localStorage.removeItem(USER_PROFILE_KEY);
+      localStorage.removeItem(REFERRAL_CODE_KEY);
+    } catch { /* ignore */ }
+    setUserData({ twitterId: '', username: 'degen_whale', pfp: 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale', tierName: 'House Legend', totalPoints: 0, followersCount: 0 });
+    setScreen('hero');
+  }, []);
+
   // Check URL hash for admin route on load
   useEffect(() => {
     if (window.location.hash === '#admin' && screen !== 'admin') setScreen('admin');
@@ -178,7 +187,7 @@ function App() {
           <BoxesScreen key="boxes" userData={userData} onComplete={handleBoxesDone} onUserProfile={handleUserProfileUpdate} />
         )}
         {screen === 'vip' && (
-          <VIPScreen key="vip" userData={userData} onLeaderboard={() => setScreen('leaderboard')} />
+          <VIPScreen key="vip" userData={userData} onLeaderboard={() => setScreen('leaderboard')} onLogout={handleLogout} />
         )}
         {screen === 'leaderboard' && (
           <LeaderboardScreen key="leaderboard" onBack={() => setScreen('vip')} currentUsername={userData.username} />
