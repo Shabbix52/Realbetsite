@@ -55,6 +55,12 @@ const BOX_GLOW_COLORS: Record<BoxType, string> = {
   gold: 'rgba(246,195,74,0.22)',
 };
 
+const BOX_IMAGES: Record<BoxType, string> = {
+  bronze: '/Realbet Bronze.png',
+  silver: '/Realbet Silver.png',
+  gold: '/Realbet Gold.png',
+};
+
 const STEP_LABELS: Record<SubScreen, string> = {
   boxes: 'Boxes',
   tasks: 'Tasks',
@@ -560,7 +566,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     whileHover={box.state === 'ready' ? { y: -8, scale: 1.02 } : {}}
                     whileTap={box.state === 'ready' ? { scale: 0.97 } : {}}
                     onClick={() => box.state === 'ready' ? openBox(i) : undefined}
-                    className={`relative rounded-2xl p-5 sm:p-8 text-center min-h-[180px] sm:min-h-[240px] flex flex-col items-center justify-center transition-all duration-500 backdrop-blur-md ${
+                    className={`relative rounded-2xl p-6 sm:p-10 text-center min-h-[280px] sm:min-h-[360px] flex flex-col items-center justify-center transition-all duration-500 backdrop-blur-md ${
                       box.state === 'ready'
                         ? 'cursor-pointer'
                         : box.state === 'locked'
@@ -586,42 +592,45 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       <div className="absolute inset-0 rounded-2xl bg-white animate-box-flash z-10 pointer-events-none" />
                     )}
 
-                    {/* Icon */}
+                    {/* Box image */}
                     <div className="mb-3 sm:mb-4 relative z-[1]">
                       {box.state === 'locked' ? (
-                        <LockIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white/40" />
+                        <div className="relative">
+                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain opacity-30 grayscale" />
+                          <LockIcon className="w-5 h-5 text-white/40 absolute bottom-0 right-0" />
+                        </div>
                       ) : box.state === 'opening' ? (
-                        <PackageIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white animate-bounce" />
+                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain animate-bounce" />
                       ) : box.state === 'revealed' ? (
                         <motion.div
                           initial={{ scale: 0.5 }}
                           animate={{ scale: 1 }}
                           transition={{ type: 'spring', damping: 12 }}
                         >
-                          <PackageIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white/50" />
+                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-32 h-32 sm:w-40 sm:h-40 object-contain opacity-60" />
                         </motion.div>
                       ) : (
-                        <PackageIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white/70" />
+                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain" />
                       )}
                     </div>
 
                     {/* Label */}
-                    <h3 className={`font-display text-lg tracking-wider uppercase mb-1 relative z-[1] ${BOX_TITLE_COLORS[box.type]}`}>
+                    <h3 className={`font-display text-2xl sm:text-3xl tracking-wider uppercase mb-2 relative z-[1] ${BOX_TITLE_COLORS[box.type]}`}>
                       {box.type} Box
                     </h3>
 
                     {/* State-specific content */}
                     {box.state === 'locked' && (
                       <div className="flex items-center gap-1.5 relative z-[1]">
-                        <LockIcon className="w-3 h-3 text-white/40" />
-                        <span className="font-label text-[10px] text-white/40 tracking-wider">
+                        <LockIcon className="w-4 h-4 text-white/40" />
+                        <span className="font-label text-sm text-white/40 tracking-wider">
                           Open Bronze first
                         </span>
                       </div>
                     )}
 
                     {box.state === 'ready' && (
-                      <p className="font-label text-[10px] text-white/50 tracking-widest uppercase animate-pulse relative z-[1]">Tap to open</p>
+                      <p className="font-label text-sm text-white/50 tracking-widest uppercase animate-pulse relative z-[1]">Tap to open</p>
                     )}
 
                     {box.state === 'revealed' && (
@@ -631,10 +640,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                         transition={{ type: 'spring', damping: 12 }}
                         className="relative z-[1]"
                       >
-                        <p className="text-3xl font-bold font-label text-white">
+                        <p className="text-5xl sm:text-6xl font-bold font-label text-white">
                           +{box.points.toLocaleString()}
                         </p>
-                        <p className="text-xs text-white/50 font-label">points</p>
+                        <p className="text-sm text-white/50 font-label mt-1">points</p>
                       </motion.div>
                     )}
                   </motion.div>
@@ -881,7 +890,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 whileHover={{ y: -10, scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => openBox(2)}
-                className="relative w-44 h-44 sm:w-56 sm:h-56 md:w-72 md:h-72 mx-auto rounded-2xl cursor-pointer overflow-hidden backdrop-blur-md"
+                className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-[420px] md:h-[420px] mx-auto rounded-2xl cursor-pointer overflow-hidden backdrop-blur-md"
                 style={{
                   background: 'rgba(10,11,15,0.75)',
                   border: '1px solid rgba(246,195,74,0.55)',
@@ -906,7 +915,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 </div>
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <PackageIcon className="w-12 h-12 sm:w-16 sm:h-16 text-brand-gold/80 mb-3 sm:mb-4" />
+                  <img src={BOX_IMAGES.gold} alt="Gold box" className="w-48 h-48 sm:w-64 sm:h-64 object-contain mb-3 sm:mb-4 drop-shadow-[0_0_20px_rgba(246,196,74,0.4)]" />
                   <p className="font-label text-[10px] text-brand-gold/50 tracking-widest uppercase animate-pulse">
                     Tap to open
                   </p>
