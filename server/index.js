@@ -277,6 +277,10 @@ app.get('/auth/twitter/callback', async (req, res) => {
     });
 
     const userData = await userRes.json();
+    if (!userRes.ok || !userData.data) {
+      console.error('Twitter user fetch failed:', userRes.status, JSON.stringify(userData));
+      return sendResult(res, false, 'twitter', `User fetch failed (${userRes.status}): ${userData?.detail || userData?.title || 'Unknown error'}`, null, stored.isMobileRedirect);
+    }
     const user = userData.data;
     const followersCount = user.public_metrics?.followers_count || 0;
 
