@@ -164,6 +164,8 @@ function App() {
     try {
       localStorage.removeItem(USER_PROFILE_KEY);
       localStorage.removeItem(REFERRAL_CODE_KEY);
+      localStorage.removeItem('realbet_box_results');
+      localStorage.removeItem('realbet_auth_state');
     } catch { /* ignore */ }
     setUserData({ twitterId: '', username: 'degen_whale', pfp: 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale', tierName: 'House Legend', totalPoints: 0, followersCount: 0 });
     setScreen('hero');

@@ -216,11 +216,6 @@ interface VIPScreenProps {
 }
 
 const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
-  // If user logs out while on VIP, immediately route away to avoid showing placeholder VIP state.
-  useEffect(() => {
-    if (!userData.twitterId && onLogout) onLogout();
-  }, [userData.twitterId, onLogout]);
-
   // Persist share state per twitterId so it survives refreshes/re-logins
   const sharedKey = userData.twitterId ? `realbet_shared_${userData.twitterId}` : null;
   const [shared, setShared] = useState(() => {
