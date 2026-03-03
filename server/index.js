@@ -554,7 +554,8 @@ function verifyScoreToken(twitterId, type, points, tierName, issuedAt, token) {
 
 // Valid point ranges for server-side validation
 const VALID_RANGES = { bronze: [100, 500], silver: [500, 1100], gold: [0, 70000] };
-const MAX_TOTAL_POINTS = 71600; // 500 + 1100 + 70000
+const MAX_TASK_BONUS = 1000; // 500 per task × 2 tasks
+const MAX_TOTAL_POINTS = 71600 + MAX_TASK_BONUS; // 500 + 1100 + 70000 + task bonuses
 
 function validatePoints(type, pts) {
   const range = VALID_RANGES[type];
@@ -591,10 +592,14 @@ app.post('/auth/scores', async (req, res) => {
         return res.status(400).json({ error: `Invalid ${box.type} points: ${box.points}` });
       }
     }
-    // Verify total matches sum
+    // Verify total matches sum (including task bonuses)
     const computedTotal = boxes.reduce((s, b) => s + (b.points || 0), 0);
-    if (totalPoints && Math.abs(computedTotal - totalPoints) > 1) {
-      return res.status(400).json({ error: 'Total doesn\'t match box sum' });
+    const taskBonus = Number(req.body.taskBonus) || 0;
+    if (taskBonus < 0 || taskBonus > MAX_TASK_BONUS || taskBonus % 500 !== 0) {
+      return res.status(400).json({ error: 'Invalid task bonus' });
+    }
+    if (totalPoints && Math.abs((computedTotal + taskBonus) - totalPoints) > 1) {
+      return res.status(400).json({ error: 'Total doesn\'t match box sum + task bonus' });
     }
 
     // HMAC token verification

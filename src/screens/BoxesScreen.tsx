@@ -226,6 +226,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           followersCount,
           boxes: currentBoxes,
           walletMultiplier: 1,
+          taskBonus,
           totalPoints: total,
         }),
       });

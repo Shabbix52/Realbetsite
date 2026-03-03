@@ -222,6 +222,15 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
       setUsers(null);
       setResetConfirm(false);
       setError(null);
+      // Clear ALL client-side realbet_* localStorage keys (box results, auth state, share flags, etc.)
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('realbet_')) keysToRemove.push(key);
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      } catch { /* ignore */ }
       // Refresh current tab
       if (tab === 'overview') fetchStats();
       else fetchUsers();
