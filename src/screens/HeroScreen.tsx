@@ -358,7 +358,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                 >
-                  OPEN MYSTERY BOX →
+                  OPEN MYSTERY BOXES →
                 </motion.span>
               )}
             </AnimatePresence>

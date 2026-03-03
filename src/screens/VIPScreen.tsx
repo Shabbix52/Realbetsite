@@ -185,13 +185,13 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
         </div>
       </div>
 
-      {/* Reflection — hidden on mobile to save space */}
+      {/* Reflection — subtle, compact */}
       <div
-        className="hidden sm:block w-full aspect-[16/9] rounded-2xl mt-1 opacity-10 blur-sm pointer-events-none"
+        className="hidden sm:block w-full h-8 rounded-2xl mt-1 opacity-10 blur-sm pointer-events-none"
         style={{
           transform: 'scaleY(-1)',
-          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 50%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 50%)',
+          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 100%)',
           background: 'linear-gradient(135deg, #12131A 0%, #0D0E14 50%, #07070B 100%)',
         }}
       />
@@ -489,7 +489,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
         animate="show"
         className="w-full max-w-4xl mx-auto py-4 sm:py-8 pb-24 sm:pb-16"
       >
-        {/* ── Big Allocation Headline (optics layer) ── */}
+        {/* ── Big Allocation Headline ── */}
         <motion.div variants={itemVariants} className="text-center mb-4 sm:mb-8">
           <h2 className="font-display text-xl sm:text-3xl md:text-5xl font-bold tracking-tight uppercase mb-1 sm:mb-2">
             Season 1{' '}
@@ -516,13 +516,30 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
 
         {/* ── Two-column layout ── */}
         <div className="flex flex-col lg:flex-row gap-5 sm:gap-8 items-start">
-          {/* Left Column: VIP Card */}
-          <motion.div variants={itemVariants} className="flex-1 w-full">
+          {/* ═══ Left Column: VIP Card + Share + Referral ═══ */}
+          <motion.div variants={itemVariants} className="flex-1 w-full space-y-3 sm:space-y-4">
             <VIPCard userData={userData} displayPoints={displayPoints} />
+
+            {/* Share on X button */}
+            <button
+              onClick={handleShare}
+              disabled={shared}
+              style={{ touchAction: 'manipulation' }}
+              className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
+                shared
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              {shared ? 'SHARED ✓' : 'SHARE ON X'}
+            </button>
           </motion.div>
 
-          {/* Right Column: Info Panel */}
-          <motion.div variants={itemVariants} className="flex-1 w-full lg:max-w-sm lg:mx-0 space-y-3 sm:space-y-5">
+          {/* ═══ Right Column: Referral + Season 1 Allocation ═══ */}
+          <motion.div variants={itemVariants} className="flex-1 w-full lg:max-w-sm lg:mx-0 space-y-4 sm:space-y-5">
             {/* ── REFERRAL SYSTEM ── */}
             <div className="glass-panel rounded-2xl p-4 sm:p-6 space-y-3 sm:space-y-4">
               {/* Header */}
@@ -668,140 +685,96 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
               )}
             </div>
 
-            {/* Power Points + Allocation Panel */}
-            <div className="glass-panel rounded-2xl p-4 sm:p-6">
-              <div className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-1 sm:mb-2">
-                    Power Points
-                  </p>
-                  <p className="text-2xl sm:text-4xl font-bold font-label text-white">
-                    {powerScore.toLocaleString()}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-label text-[10px] tracking-wider text-white/50 uppercase">
-                    Total Allocation
-                  </p>
-                  <p className="text-brand-gold text-xl sm:text-2xl font-bold font-label">
-                    ${allocationDollars.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <p className="text-white/40 text-[10px] font-label mt-3">
-                {tier.label} follower tier • Rewards capped per tier for operator safety.
+            {/* ── Season 1 Allocation ── */}
+            <div className="glass-panel rounded-2xl p-5 sm:p-8 space-y-5 sm:space-y-6">
+              {/* Section heading */}
+              <p className="font-label text-[10px] tracking-[0.3em] text-white/50 uppercase">
+                // SEASON 1 ALLOCATION
               </p>
-            </div>
 
-            {/* Reward Breakdown — revealed after share */}
-            <AnimatePresence>
-              {shared && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.5 }}
-                  className="space-y-3 overflow-hidden"
+              {/* Power Score */}
+              <div>
+                <motion.p
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
+                  className="text-4xl sm:text-5xl font-bold font-label text-white"
+                  style={{ textShadow: '0 0 40px rgba(255,255,255,0.08)' }}
                 >
-                  <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase">
-                    Reward Breakdown
-                  </p>
-
-                  {/* Wager Bonus (60%) */}
-                  <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-green-400 text-sm">🎰</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-white/90">Wager Bonus</p>
-                        <p className="text-[10px] text-white/50 font-label">{split.freePlay.wager}x playthrough</p>
-                      </div>
-                    </div>
-                    <p className="text-green-400 text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
-                      ${split.freePlay.dollars.toLocaleString()}
-                    </p>
-                  </div>
-
-                  {/* REAL Points (40%) */}
-                  <div className="glass-panel rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-brand-gold text-sm">⭐</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-white/90">REAL Points</p>
-                        <p className="text-[10px] text-white/50 font-label truncate">Leaderboard → Airdrop</p>
-                      </div>
-                    </div>
-                    <p className="text-brand-gold text-base sm:text-lg font-bold font-label whitespace-nowrap flex-shrink-0">
-                      {split.realPoints.toLocaleString()}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Pre-share perks */}
-            {!shared && (
-              <div className="space-y-2 px-1">
-                {[
-                  'Up to 60% as Wager Bonus (15x playthrough)',
-                  '40% as REAL Points → Leaderboard → Airdrop',
-                ].map((perk) => (
-                  <div key={perk} className="flex items-center gap-3">
-                    <span className="text-brand-gold/50 text-xs">→</span>
-                    <span className="text-white/70 text-sm">{perk}</span>
-                  </div>
-                ))}
+                  {displayPoints.toLocaleString()}
+                </motion.p>
+                <p className="text-white/50 text-sm font-label tracking-wider mt-1">Power Score</p>
               </div>
-            )}
 
-            {/* Share + Claim buttons */}
-            <div className="space-y-3">
-              <button
-                onClick={handleShare}
-                disabled={shared}
-                style={{ touchAction: 'manipulation' }}
-                className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
-                  shared
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                    : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
-                }`}
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-                {shared ? 'SHARED ✓' : <><span className="hidden sm:inline">SHARE ON X TO REVEAL REWARDS</span><span className="sm:hidden">SHARE ON X TO REVEAL</span></>}
-              </button>
+              {/* Divider */}
+              <div className="h-px bg-gradient-to-r from-transparent via-rb-border/40 to-transparent" />
 
+              {/* Split explanation */}
+              <div className="space-y-2">
+                <p className="text-white/60 text-sm">Your Power Score is split into:</p>
+                <div className="space-y-1.5 pl-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400 text-xs">•</span>
+                    <span className="text-white/80 text-sm font-medium">60% Play Credit</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-brand-gold text-xs">•</span>
+                    <span className="text-white/80 text-sm font-medium">40% Season 1 REAL Points</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-px bg-gradient-to-r from-transparent via-rb-border/40 to-transparent" />
+
+              {/* Breakdown */}
+              <div className="space-y-3">
+                <p className="font-label text-[10px] tracking-[0.2em] text-white/50 uppercase">Breakdown</p>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-green-400 text-sm">🎰</span>
+                    </div>
+                    <span className="text-white/80 text-sm">Play Credit</span>
+                  </div>
+                  <span className="text-green-400 text-lg font-bold font-label">
+                    ${split.freePlay.dollars.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-brand-gold text-sm">⭐</span>
+                    </div>
+                    <span className="text-white/80 text-sm">Season 1 REAL Points</span>
+                  </div>
+                  <span className="text-brand-gold text-lg font-bold font-label">
+                    {split.realPoints.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-px bg-gradient-to-r from-transparent via-rb-border/40 to-transparent" />
+
+              {/* Claim button */}
               <button
                 onClick={handleClaim}
-                disabled={!shared}
                 style={{
                   touchAction: 'manipulation',
-                  ...(shared ? { background: 'linear-gradient(to bottom, rgba(255,59,48,0.9), #8B1A1A)' } : {}),
+                  background: 'linear-gradient(to bottom, rgba(255,59,48,0.9), #8B1A1A)',
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
-                  shared
-                    ? 'border border-brand-red/40 text-[#F0F1F7] shadow-[0_0_50px_rgba(255,59,48,0.15)] hover:shadow-[0_0_80px_rgba(255,59,48,0.3)]'
-                    : 'glass-panel text-white/40 cursor-not-allowed'
-                }`}
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-[0.15em] uppercase transition-all duration-300 active:scale-[0.98] border border-brand-red/40 text-[#F0F1F7] shadow-[0_0_50px_rgba(255,59,48,0.15)] hover:shadow-[0_0_80px_rgba(255,59,48,0.3)]"
               >
-                {!shared && <LockIcon className="w-4 h-4" />}
-                {shared ? <><span className="hidden sm:inline">CLAIM ${split.totalCash.toLocaleString()} + {split.realPoints.toLocaleString()} REAL PTS</span><span className="sm:hidden">CLAIM ${split.totalCash.toLocaleString()} REWARDS</span></> : 'CLAIM REWARDS'}
+                CLAIM YOUR SEASON 1 REWARD
               </button>
 
-              {!shared && (
-                <p className="text-center text-[10px] text-white/30 tracking-widest font-label">
-                  Share on X to reveal your full reward breakdown
-                </p>
-              )}
-              {shared && (
-                <p className="text-center text-[10px] text-white/50 tracking-widest font-label">
-                  Wager Bonus: {split.freePlay.wager}x playthrough
-                </p>
-              )}
+              {/* Tier note */}
+              <p className="text-white/30 text-[10px] font-label text-center">
+                {tier.label} tier • {split.freePlay.wager}x playthrough on Play Credit
+              </p>
             </div>
 
             {/* Leaderboard link */}
@@ -809,7 +782,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
               <button
                 onClick={onLeaderboard}
                 style={{ touchAction: 'manipulation' }}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 active:scale-[0.98] text-brand-gold text-sm font-bold font-label tracking-wider border border-brand-gold/10 transition-all"
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 active:scale-[0.98] text-brand-gold text-sm font-bold font-label tracking-wider border border-brand-gold/10 transition-all mt-4"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 21h8m-4-4v4M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
@@ -819,17 +792,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
               </button>
             )}
 
-            {/* Payment logos */}
-            <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap pt-2">
-              {['Apple Pay', 'Visa', 'Mastercard', 'Google Pay'].map((name) => (
-                <span key={name} className="text-[10px] text-white/30 tracking-wider font-label uppercase">
-                  {name}
-                </span>
-              ))}
-            </div>
-
             {/* Tagline */}
-            <p className="text-center text-white/20 text-xs italic pt-2">
+            <p className="text-center text-white/20 text-xs italic pt-4">
               See you at the tables.
             </p>
           </motion.div>
