@@ -208,11 +208,14 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     });
   }, [twitterVerified, twitterId, twitterUsername, followersCount, discordVerified, discordUserId, tasks]);
 
+  const TASK_BONUS = 500;
+
   // Save scores to DB
-  const saveScoresToDB = useCallback(async (currentBoxes: BoxData[]) => {
+  const saveScoresToDB = useCallback(async (currentBoxes: BoxData[], currentTasks = tasks) => {
     const tid = twitterId;
     if (!tid) return;
-    const total = currentBoxes.reduce((sum, b) => sum + b.points, 0);
+    const taskBonus = (currentTasks.follow ? TASK_BONUS : 0) + (currentTasks.discord ? TASK_BONUS : 0);
+    const total = currentBoxes.reduce((sum, b) => sum + b.points, 0) + taskBonus;
     try {
       await fetch(getApiUrl('/auth/scores'), {
         method: 'POST',
@@ -227,9 +230,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         }),
       });
     } catch { /* non-blocking */ }
-  }, [twitterId, twitterUsername, followersCount]);
+  }, [twitterId, twitterUsername, followersCount, tasks]);
 
-  const totalPoints = boxes.reduce((sum, b) => sum + b.points, 0);
+  const taskBonusPoints = (tasks.follow ? TASK_BONUS : 0) + (tasks.discord ? TASK_BONUS : 0);
+  const totalPoints = boxes.reduce((sum, b) => sum + b.points, 0) + taskBonusPoints;
   const displayTotal = useCountUp(totalPoints, 1000);
   const completedTasks = [tasks.follow, tasks.discord].filter(Boolean).length;
 
@@ -314,13 +318,14 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     }, 1300);
   }, [boxes, twitterId, followersCount, saveScoresToDB]);
 
-  // Watch tasks state — when both are done, unlock gold and navigate
+  // Watch tasks state — follow is required; discord is optional bonus
+  // Gold unlocks as soon as follow is done
   useEffect(() => {
-    if (!tasks.follow || !tasks.discord) return;
+    if (!tasks.follow) return;
     setBoxes(prev => {
       const gold = prev.find(b => b.type === 'gold');
       if (!gold || gold.state === 'ready' || gold.state === 'revealed') return prev;
-      console.log('[Tasks] useEffect: both tasks done — unlocking gold box');
+      console.log('[Tasks] useEffect: follow done — unlocking gold box');
       return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
     });
     setSubScreen(prev => {
@@ -330,7 +335,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       }
       return prev;
     });
-  }, [tasks.follow, tasks.discord]);
+    // Persist updated bonus with current tasks
+    saveScoresToDB(boxes, tasks);
+  }, [tasks.follow, tasks.discord]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTask = useCallback(async (task: 'follow' | 'discord') => {
     if (taskLoading) return;
@@ -478,7 +485,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
-    saveScoresToDB(boxes);
+    saveScoresToDB(boxes, tasks);
     onComplete(totalPoints, finalTier, followersCount);
   };
 
@@ -551,8 +558,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </h2>
 
               {/* Description */}
-              <p className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md">
-                Each box reveals a score. Scores convert to Season 1 Credits called REAL points. <br />Good luck, you'll need it here.
+              <p className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md leading-relaxed">
+                Three boxes. One score. Everything counts.<br /><br />
+                Bronze and Silver are pure luck. Gold rewards your reach.<br /><br />
+                Your Power Score determines:<br />
+                ▸ Real bonus money<br />
+                ▸ Season 1 leaderboard rank<br /><br />
+                Open all three. The House is keeping track.
               </p>
 
               {/* Boxes Grid — only bronze & silver */}
@@ -707,20 +719,23 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
               {/* Description */}
               <p className="text-white/70 text-sm mb-6 sm:mb-10">
-                Complete these steps to unlock your biggest reward.
+                Bigger reach. Bigger Gold. Connect and verify to unlock.
               </p>
 
               {/* Progress bar */}
               <div className="mb-5 sm:mb-8">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-label text-[10px] tracking-wider text-white/60">Gold Mystery Box Unlock</span>
-                  <span className="font-label text-[10px] tracking-wider text-white/60">{completedTasks}/2 completed</span>
+                  <span className="font-label text-[10px] tracking-wider text-white/60">
+                    {tasks.follow ? '1/1 required' : '0/1 required'}
+                    {tasks.discord ? ' · +Discord bonus' : ''}
+                  </span>
                 </div>
                 <div className="h-1 bg-rb-border rounded-full overflow-hidden">
                   <motion.div
                     className="h-full bg-brand-gold rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ width: `${(completedTasks / 2) * 100}%` }}
+                    animate={{ width: tasks.follow ? '100%' : '0%' }}
                     transition={{ duration: 0.5 }}
                   />
                 </div>
@@ -744,7 +759,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       <p className="text-sm font-bold tracking-wider text-white/90">
                         {!twitterVerified ? 'Connect & Follow @Realbet' : 'Follow @Realbet'}
                       </p>
-                      <p className="text-xs text-brand-gold/60 font-label">+500 bonus points</p>
+                      <p className="text-xs text-brand-gold/60 font-label">+500 pts · required to unlock Gold</p>
                       {twitterVerified && !tasks.follow && !followVerifying && (
                         <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Connected — tap Follow to continue</p>
                       )}
@@ -785,8 +800,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-bold tracking-wider text-white/90">Join Discord</p>
-                      <p className="text-xs text-brand-gold/60 font-label">+500 bonus points</p>
+                      <p className="text-sm font-bold tracking-wider text-white/90">Join Discord <span className="text-white/30 font-normal text-[10px] tracking-wider ml-1">(OPTIONAL)</span></p>
+                      <p className="text-xs text-brand-gold/60 font-label">+500 pts bonus</p>
                       {discordVerified && !tasks.discord && !discordError && (
                         <p className="text-xs text-purple-400/60 mt-0.5">Connected — checking membership...</p>
                       )}
@@ -828,7 +843,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </div>
 
               {/* GOLD UNLOCKED badge */}
-              {tasks.follow && tasks.discord && (
+              {tasks.follow && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -879,7 +894,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
               {/* Description */}
               <p className="text-white/70 text-sm mb-8 sm:mb-12">
-                Your biggest reward awaits. The House saved the best for last.
+                The House saved the heaviest hit for last.
               </p>
 
               {/* Big gold box — responsive size */}
@@ -917,7 +932,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <img src={BOX_IMAGES.gold} alt="Gold box" className="w-48 h-48 sm:w-64 sm:h-64 object-contain mb-3 sm:mb-4 drop-shadow-[0_0_20px_rgba(246,196,74,0.4)]" />
                   <p className="font-label text-[10px] text-brand-gold/50 tracking-widest uppercase animate-pulse">
-                    Tap to open
+                    OPEN &amp; LOCK SCORE
                   </p>
                 </div>
               </motion.div>

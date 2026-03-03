@@ -269,7 +269,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           transition={{ duration: 0.8, delay: 1.6 }}
           className="font-mono text-sm text-rb-muted max-w-md mb-10 leading-relaxed"
         >
-          {'The realest house is watching who moves first this season.'.split(' ').map((word, i) => (
+          {'The house doesn\'t wait. Neither should you.'.split(' ').map((word, i) => (
             <motion.span
               key={i}
               initial={{ opacity: 0, filter: 'blur(4px)' }}
@@ -281,7 +281,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
             </motion.span>
           ))}
           <br />
-          {'Choose your boxes. Crack them open. And be a VIP of the house you\'ll own.'.split(' ').map((word, i) => (
+          {'Open your boxes. Lock your Power Score. Claim what\'s yours.'.split(' ').map((word, i) => (
             <motion.span
               key={`l2-${i}`}
               initial={{ opacity: 0, filter: 'blur(4px)' }}
@@ -358,7 +358,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                 >
-                  Open Mystery Box →
+                  OPEN MYSTERY BOX →
                 </motion.span>
               )}
             </AnimatePresence>

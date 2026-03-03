@@ -606,36 +606,6 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
                 </button>
               )}
 
-              {/* Apply referral code (only for new users who haven't been referred) */}
-              {!referredBy && userData.isNewUser && (
-                <div className="space-y-2 pt-1">
-                  <p className="text-[10px] text-white/30 font-label tracking-wider">HAVE A REFERRAL CODE?</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={referralCodeInput}
-                      onChange={e => setReferralCodeInput(e.target.value.toUpperCase())}
-                      placeholder="Enter code (e.g. RB1A2B3C)"
-                      maxLength={10}
-                      className="flex-1 px-3 py-2.5 rounded-lg bg-rb-card border border-rb-border text-white text-xs font-label focus:outline-none focus:border-purple-500/40 placeholder:text-rb-muted/30"
-                    />
-                    <button
-                      onClick={handleApplyReferral}
-                      disabled={referralApplying || !referralCodeInput.trim()}
-                      className="px-4 py-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-bold font-label tracking-wider border border-purple-500/20 transition-all disabled:opacity-40"
-                    >
-                      {referralApplying ? (
-                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      ) : 'APPLY'}
-                    </button>
-                  </div>
-                  {referralApplyResult && (
-                    <p className={`text-xs font-label ${referralApplyResult.success ? 'text-green-400' : 'text-red-400'}`}>
-                      {referralApplyResult.message}
-                    </p>
-                  )}
-                </div>
-              )}
               {referredBy && (
                 <p className="text-[10px] text-green-400/60 font-label tracking-wider">
                   ✓ Referred by @{referredBy} — +{referralReferredBonus} bonus pts
