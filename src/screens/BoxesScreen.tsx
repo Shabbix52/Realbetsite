@@ -930,7 +930,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <img src={BOX_IMAGES.gold} alt="Gold box" className="w-48 h-48 sm:w-64 sm:h-64 object-contain mb-3 sm:mb-4 drop-shadow-[0_0_20px_rgba(246,196,74,0.4)]" />
-                  <p className="font-label text-[10px] text-brand-gold/50 tracking-widest uppercase animate-pulse">
+                  <p className="font-label text-sm text-brand-gold/70 tracking-widest uppercase animate-pulse">
                     OPEN &amp; LOCK SCORE
                   </p>
                 </div>
