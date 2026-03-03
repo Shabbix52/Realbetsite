@@ -18,6 +18,64 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
 };
 
+/* ── Floating VIP embers (deterministic — no Math.random in render) ── */
+const VIP_EMBERS = [
+  { delay: 0, x: 12, size: 2.5, hue: 358, yFactor: 0.45, xDrift: 30, dur: 7 },
+  { delay: 0.9, x: 28, size: 3.2, hue: 362, yFactor: 0.55, xDrift: -25, dur: 8.5 },
+  { delay: 1.7, x: 45, size: 2, hue: 355, yFactor: 0.6, xDrift: 40, dur: 6.5 },
+  { delay: 2.5, x: 62, size: 3.5, hue: 370, yFactor: 0.5, xDrift: -35, dur: 9 },
+  { delay: 3.3, x: 78, size: 2.8, hue: 360, yFactor: 0.65, xDrift: 20, dur: 7.5 },
+  { delay: 4.1, x: 88, size: 2.2, hue: 356, yFactor: 0.4, xDrift: -45, dur: 8 },
+  { delay: 5.0, x: 20, size: 3, hue: 365, yFactor: 0.55, xDrift: 35, dur: 7.8 },
+  { delay: 5.8, x: 52, size: 2.6, hue: 358, yFactor: 0.7, xDrift: -30, dur: 6.8 },
+  { delay: 6.6, x: 70, size: 3.3, hue: 372, yFactor: 0.48, xDrift: 25, dur: 9.2 },
+  { delay: 7.4, x: 35, size: 2.3, hue: 355, yFactor: 0.58, xDrift: -40, dur: 7.2 },
+];
+
+const VIPEmber = ({ delay, x, size, hue, yFactor, xDrift, dur }: (typeof VIP_EMBERS)[0]) => (
+  <motion.div
+    className="absolute rounded-full pointer-events-none"
+    style={{
+      width: size,
+      height: size,
+      left: `${x}%`,
+      bottom: '-5%',
+      background: `radial-gradient(circle, hsl(${hue} 90% 55% / 0.9), transparent)`,
+      filter: size < 3 ? 'none' : 'blur(1px)',
+    }}
+    initial={{ y: 0, opacity: 0, scale: 0 }}
+    animate={{
+      y: [0, -(typeof window !== 'undefined' ? window.innerHeight : 800) * yFactor],
+      x: [0, xDrift],
+      opacity: [0, 0.6, 0.6, 0],
+      scale: [0, 1, 1, 0.3],
+    }}
+    transition={{ duration: dur, delay, repeat: Infinity, ease: 'easeOut' }}
+  />
+);
+
+/* ── Scan line ── */
+const VIPScanLine = ({ top, delay }: { top: string; delay: number }) => (
+  <motion.div
+    className="absolute left-0 w-full pointer-events-none z-[2]"
+    style={{ top, height: '1px' }}
+    initial={{ scaleX: 0, opacity: 0 }}
+    animate={{ scaleX: 1, opacity: [0, 0.2, 0] }}
+    transition={{ duration: 3, delay, repeat: Infinity, repeatDelay: 10, ease: 'easeInOut' }}
+  >
+    <div className="w-full h-full bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+  </motion.div>
+);
+
+/* ── Red diamond divider ── */
+const RedDivider = () => (
+  <div className="flex items-center gap-3 my-1">
+    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+  </div>
+);
+
 /* ── VIP Card Component ── */
 interface VIPCardProps {
   userData: UserData;
@@ -401,8 +459,29 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10"
+      className="min-h-screen flex flex-col items-center relative px-4 sm:px-6 z-10 overflow-hidden"
     >
+      {/* ── Atmospheric effects (matching HeroScreen) ── */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-[1]">
+        {VIP_EMBERS.map((e, i) => (
+          <VIPEmber key={i} {...e} />
+        ))}
+      </div>
+      <VIPScanLine top="22%" delay={3} />
+      <VIPScanLine top="58%" delay={8} />
+      <VIPScanLine top="82%" delay={14} />
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-[1]"
+        animate={{ opacity: [0, 0.15, 0] }}
+        transition={{ duration: 6, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
+        style={{
+          background: 'radial-gradient(ellipse 60% 40% at 50% 20%, hsl(355 83% 41% / 0.12), transparent 70%)',
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none z-[3]"
+        style={{ background: 'linear-gradient(to top, hsl(240 18% 2% / 0.9), transparent)' }}
+      />
 
       {/* Share confirmation modal */}
       <AnimatePresence>
@@ -490,28 +569,52 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
         className="w-full max-w-4xl mx-auto py-4 sm:py-8 pb-24 sm:pb-16"
       >
         {/* ── Big Allocation Headline ── */}
-        <motion.div variants={itemVariants} className="text-center mb-4 sm:mb-8">
-          <h2 className="font-display text-xl sm:text-3xl md:text-5xl font-bold tracking-tight uppercase mb-1 sm:mb-2">
+        <motion.div variants={itemVariants} className="text-center mb-6 sm:mb-10">
+          {/* Badge line */}
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: 'auto' }}
+            transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden inline-flex items-center gap-3 mb-3"
+          >
+            <motion.span
+              className="inline-block w-8 h-px bg-brand-red/60"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              style={{ transformOrigin: 'left' }}
+            />
+            <span className="font-mono text-[10px] sm:text-xs tracking-[0.3em] text-rb-muted/60 uppercase whitespace-nowrap">
+              RealBet · Season 1
+            </span>
+            <motion.span
+              className="inline-block w-8 h-px bg-brand-red/60"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              style={{ transformOrigin: 'right' }}
+            />
+          </motion.div>
+
+          <h2
+            className="font-display text-3xl sm:text-5xl md:text-7xl font-bold tracking-wider uppercase mb-2 sm:mb-3"
+            style={{ textShadow: '0 0 60px hsl(355 83% 41% / 0.3), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+          >
             Season 1{' '}
             <span className="text-brand-red">Allocation</span>
           </h2>
-          <motion.p
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, type: 'spring', stiffness: 100 }}
-            className="text-3xl sm:text-5xl md:text-7xl font-bold font-label text-white mt-1 sm:mt-2"
-            style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}
-          >
-            ${allocationDollars.toLocaleString()}
-          </motion.p>
-          <motion.p
+
+          {/* Red diamond divider */}
+          <motion.div
+            className="flex items-center gap-3 max-w-xs mx-auto mt-4 sm:mt-6"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-brand-gold text-sm sm:text-lg md:text-xl font-bold font-label mt-1 sm:mt-2"
+            transition={{ delay: 0.6 }}
           >
-            {displayPoints.toLocaleString()} Power Points
-          </motion.p>
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/40 to-transparent" />
+            <div className="w-2 h-2 bg-brand-red/60 rotate-45" />
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent via-brand-red/40 to-transparent" />
+          </motion.div>
         </motion.div>
 
         {/* ── Two-column layout ── */}
@@ -686,11 +789,17 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
             </div>
 
             {/* ── Season 1 Allocation ── */}
-            <div className="glass-panel rounded-2xl p-5 sm:p-8 space-y-5 sm:space-y-6">
+            <div
+              className="glass-panel rounded-2xl p-5 sm:p-8 space-y-5 sm:space-y-6"
+              style={{ boxShadow: '0 0 40px rgba(191, 18, 32, 0.05), inset 0 0 40px rgba(191, 18, 32, 0.02)' }}
+            >
               {/* Section heading */}
-              <p className="font-label text-[10px] tracking-[0.3em] text-white/50 uppercase">
-                // SEASON 1 ALLOCATION
-              </p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-px bg-brand-red/50" />
+                <p className="font-label text-[10px] tracking-[0.3em] text-white/50 uppercase">
+                  Season 1 Allocation
+                </p>
+              </div>
 
               {/* Power Score */}
               <div>
@@ -706,8 +815,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
                 <p className="text-white/50 text-sm font-label tracking-wider mt-1">Power Score</p>
               </div>
 
-              {/* Divider */}
-              <div className="h-px bg-gradient-to-r from-transparent via-rb-border/40 to-transparent" />
+              <RedDivider />
 
               {/* Split explanation */}
               <div className="space-y-2">
@@ -724,18 +832,18 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
                 </div>
               </div>
 
-              {/* Divider */}
-              <div className="h-px bg-gradient-to-r from-transparent via-rb-border/40 to-transparent" />
+              <RedDivider />
 
               {/* Breakdown */}
               <div className="space-y-3">
-                <p className="font-label text-[10px] tracking-[0.2em] text-white/50 uppercase">Breakdown</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-px bg-brand-red/50" />
+                  <p className="font-label text-[10px] tracking-[0.2em] text-white/50 uppercase">Breakdown</p>
+                </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-green-400 text-sm">🎰</span>
-                    </div>
+                    
                     <span className="text-white/80 text-sm">Play Credit</span>
                   </div>
                   <span className="text-green-400 text-lg font-bold font-label">
@@ -745,9 +853,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-brand-gold text-sm">⭐</span>
-                    </div>
+                
                     <span className="text-white/80 text-sm">Season 1 REAL Points</span>
                   </div>
                   <span className="text-brand-gold text-lg font-bold font-label">
@@ -756,20 +862,37 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
                 </div>
               </div>
 
-              {/* Divider */}
-              <div className="h-px bg-gradient-to-r from-transparent via-rb-border/40 to-transparent" />
+              <RedDivider />
 
               {/* Claim button */}
-              <button
-                onClick={handleClaim}
-                style={{
-                  touchAction: 'manipulation',
-                  background: 'linear-gradient(to bottom, rgba(255,59,48,0.9), #8B1A1A)',
-                }}
-                className="w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-[0.15em] uppercase transition-all duration-300 active:scale-[0.98] border border-brand-red/40 text-[#F0F1F7] shadow-[0_0_50px_rgba(255,59,48,0.15)] hover:shadow-[0_0_80px_rgba(255,59,48,0.3)]"
-              >
-                CLAIM YOUR SEASON 1 REWARD
-              </button>
+              <div className="relative">
+                <motion.div
+                  className="absolute -inset-3 rounded-lg pointer-events-none"
+                  animate={{ opacity: [0, 0.4, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 5 }}
+                  style={{
+                    background: 'radial-gradient(ellipse at center, hsl(355 83% 41% / 0.2), transparent 70%)',
+                    filter: 'blur(12px)',
+                  }}
+                />
+                <motion.button
+                  onClick={handleClaim}
+                  className="btn-fight pulse-glow w-full rounded-lg py-4 text-sm sm:text-base relative overflow-hidden"
+                  whileHover={{ scale: 1.02, boxShadow: '0 4px 50px hsla(355, 83%, 41%, 0.5)' }}
+                  whileTap={{ scale: 0.97 }}
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.04) 50%, transparent 55%)',
+                    }}
+                    animate={{ x: ['-100%', '250%'] }}
+                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 6, ease: 'easeInOut' }}
+                  />
+                  CLAIM YOUR SEASON 1 REWARD →
+                </motion.button>
+              </div>
 
               {/* Tier note */}
               <p className="text-white/30 text-[10px] font-label text-center">
@@ -782,7 +905,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
               <button
                 onClick={onLeaderboard}
                 style={{ touchAction: 'manipulation' }}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 active:scale-[0.98] text-brand-gold text-sm font-bold font-label tracking-wider border border-brand-gold/10 transition-all mt-4"
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-red/10 hover:bg-brand-red/20 active:scale-[0.98] text-brand-red text-sm font-bold font-label tracking-wider border border-brand-red/15 transition-all mt-4"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 21h8m-4-4v4M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
@@ -793,8 +916,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
             )}
 
             {/* Tagline */}
-            <p className="text-center text-white/20 text-xs italic pt-4">
-              See you at the tables.
+            <p className="text-center text-white/25 text-xs font-mono tracking-wider pt-4">
+              The House has spoken.
             </p>
           </motion.div>
         </div>
