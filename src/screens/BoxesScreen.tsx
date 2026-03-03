@@ -950,45 +950,51 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           >
             <motion.div className="max-w-lg mx-auto text-center">
 
+              {/* Label */}
+              <motion.p
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="font-label text-[10px] tracking-[0.3em] text-brand-red/80 uppercase mb-3"
+              >
+                // POWER SCORE LOCKED
+              </motion.p>
+
               {/* Points revealed */}
               <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 100, damping: 12, delay: 0.1 }}
-                className="mb-4 sm:mb-6"
+                className="mb-2"
               >
-                <p className="text-5xl sm:text-6xl md:text-7xl font-bold font-label text-white mb-1">
-                  +{boxes[2].points.toLocaleString()}
+                <p className="text-6xl sm:text-7xl md:text-8xl font-bold font-label text-white mb-1 tabular-nums">
+                  {displayTotal.toLocaleString()}
                 </p>
-                <p className="text-sm text-white/60 font-label">points</p>
+                <p className="text-base text-white/60 font-label tracking-widest uppercase">Power Score</p>
               </motion.div>
 
-              {/* (Removed sparkle icon and tier badge per UI request) */}
+              {/* Divider */}
+              <motion.div
+                initial={{ scaleX: 0, opacity: 0 }}
+                animate={{ scaleX: 1, opacity: 1 }}
+                transition={{ delay: 0.35, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-3 max-w-[200px] mx-auto my-6"
+                style={{ transformOrigin: 'center' }}
+              >
+                <div className="flex-1 h-px bg-gradient-to-r from-transparent to-brand-red/40" />
+                <div className="w-1.5 h-1.5 bg-brand-red/60 rotate-45" />
+                <div className="flex-1 h-px bg-gradient-to-l from-transparent to-brand-red/40" />
+              </motion.div>
 
-              {/* Status locked text */}
+              {/* Tagline */}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="text-white/60 text-sm font-label mb-5 sm:mb-8"
+                transition={{ delay: 0.45 }}
+                className="text-white/50 text-sm font-label mb-8 sm:mb-10 leading-relaxed"
               >
-                Your status is locked for Season 1.
+                This is your number. This is your allocation.<br />Season 1 starts here.
               </motion.p>
-
-              {/* Total allocation in glass panel */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="glass-panel rounded-2xl p-5 sm:p-6 max-w-xs mx-auto mb-6 sm:mb-8"
-              >
-                <p className="font-label text-[10px] tracking-[0.25em] text-white/50 uppercase mb-2">
-                  Total Allocation
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold font-label tracking-tight text-white">
-                  {displayTotal.toLocaleString()} <span className="text-white/50 text-base">pts</span>
-                </p>
-              </motion.div>
 
               {/* Continue to VIP Card */}
               {allDone && (
@@ -1008,7 +1014,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     }}
                   >
                     <span className="relative z-10 flex items-center justify-center gap-3">
-                      Unlock with your VIP Card
+                       SEE YOUR SEASON 1 REWARD
                       <svg className="w-4 h-4 opacity-60 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="m9 18 6-6-6-6" />
                       </svg>
