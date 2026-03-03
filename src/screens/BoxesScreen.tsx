@@ -551,13 +551,16 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               </h2>
 
               {/* Description */}
-              <p className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md leading-relaxed">
-                Three boxes. One score. Everything counts. Bronze and Silver are pure luck. Gold rewards your reach.<br />
-                Your Power Score determines:<br />
-                ▸ Real bonus money<br />
-                ▸ Season 1 leaderboard rank<br />
-                Open all three. The House is keeping track.
-              </p>
+              <div className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md leading-relaxed space-y-3">
+                <p>Three boxes. One score. Everything counts.</p>
+                <p>Bronze and Silver are pure luck. Gold rewards your reach.</p>
+                <p>
+                  Your Power Score determines:<br />
+                  ▸ Real bonus money<br />
+                  ▸ Season 1 leaderboard rank
+                </p>
+                <p>Open all three. The House is keeping track.</p>
+              </div>
 
               {/* Boxes Grid — only bronze & silver */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-10">
