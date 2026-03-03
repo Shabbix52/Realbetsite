@@ -169,9 +169,9 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
 
           {/* Bottom-left: Points */}
           <div className="absolute bottom-3 sm:bottom-4 left-4 sm:left-6">
-            <p className="text-brand-gold/60 text-[8px] sm:text-[10px] tracking-[0.2em] font-label mb-0.5">BONUS POINTS</p>
+            <p className="text-brand-gold/60 text-[8px] sm:text-[10px] tracking-[0.2em] font-label mb-0.5">POWER POINTS</p>
             <p className="text-brand-gold text-lg sm:text-2xl md:text-3xl font-bold font-label">
-              {displayPoints.toLocaleString()} pts
+              {displayPoints.toLocaleString()} power pts
             </p>
           </div>
 
@@ -538,7 +538,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white/90">Refer Friends</p>
-                    <p className="text-[10px] text-white/50 font-label">Earn {referralBonusPerRef} pts per referral</p>
+                    <p className="text-[10px] text-white/50 font-label">Earn {referralBonusPerRef} power pts per referral</p>
                   </div>
                 </div>
                 {referralCount > 0 && (
@@ -553,7 +553,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-label tracking-wider text-white/40">
                     <span>BONUS EARNED</span>
-                    <span>{referralBonusPoints.toLocaleString()} / {referralMaxBonus.toLocaleString()} pts</span>
+                    <span>{referralBonusPoints.toLocaleString()} / {referralMaxBonus.toLocaleString()} power pts</span>
                   </div>
                   <div className="h-1.5 bg-rb-border/30 rounded-full overflow-hidden">
                     <motion.div
@@ -608,7 +608,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
 
               {referredBy && (
                 <p className="text-[10px] text-green-400/60 font-label tracking-wider">
-                  ✓ Referred by @{referredBy} — +{referralReferredBonus} bonus pts
+                  ✓ Referred by @{referredBy} — +{referralReferredBonus} power pts
                 </p>
               )}
 

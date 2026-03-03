@@ -328,13 +328,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       console.log('[Tasks] useEffect: follow done — unlocking gold box');
       return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
     });
-    setSubScreen(prev => {
-      if (prev === 'tasks') {
-        console.log('[Tasks] useEffect: navigating to gold-pre');
-        return 'gold-pre';
-      }
-      return prev;
-    });
     // Persist updated bonus with current tasks
     saveScoresToDB(boxes, tasks);
   }, [tasks.follow, tasks.discord]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -654,7 +647,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                         <p className="text-5xl sm:text-6xl font-bold font-label text-white">
                           +{box.points.toLocaleString()}
                         </p>
-                        <p className="text-sm text-white/50 font-label mt-1">points</p>
+                        <p className="text-sm text-white/50 font-label mt-1">power points</p>
                       </motion.div>
                     )}
                   </motion.div>
@@ -674,7 +667,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       Current Total
                     </p>
                     <p className="text-3xl font-bold font-label tracking-tight text-white">
-                      {displayTotal.toLocaleString()} <span className="text-white/50 text-base">pts</span>
+                      {displayTotal.toLocaleString()} <span className="text-white/50 text-base">power pts</span>
                     </p>
                   </motion.div>
                 )}
@@ -758,7 +751,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       <p className="text-sm font-bold tracking-wider text-white/90">
                         {!twitterVerified ? 'Connect & Follow @Realbet' : 'Follow @Realbet'}
                       </p>
-                      <p className="text-xs text-brand-gold/60 font-label">+500 pts · required to unlock Gold</p>
+                      <p className="text-xs text-brand-gold/60 font-label">+500 power pts · required to unlock Gold</p>
                       {twitterVerified && !tasks.follow && !followVerifying && (
                         <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Connected — tap Follow to continue</p>
                       )}
@@ -800,7 +793,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     </div>
                     <div>
                       <p className="text-sm font-bold tracking-wider text-white/90">Join Discord <span className="text-white/30 font-normal text-[10px] tracking-wider ml-1">(OPTIONAL)</span></p>
-                      <p className="text-xs text-brand-gold/60 font-label">+500 pts bonus</p>
+                      <p className="text-xs text-brand-gold/60 font-label">+500 power pts bonus</p>
                       {discordVerified && !tasks.discord && !discordError && (
                         <p className="text-xs text-purple-400/60 mt-0.5">Connected — checking membership...</p>
                       )}
@@ -841,13 +834,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 </div>
               </div>
 
-              {/* GOLD UNLOCKED badge */}
+              {/* GOLD UNLOCKED badge + Continue button */}
               {tasks.follow && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ type: 'spring', damping: 10 }}
-                  className="mt-8 text-center"
+                  className="mt-8 text-center space-y-4"
                 >
                   <div
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/20"
@@ -858,6 +851,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       GOLD UNLOCKED
                     </span>
                   </div>
+                  <button
+                    onClick={() => setSubScreen('gold-pre')}
+                    className="block mx-auto px-8 py-3 rounded-xl bg-brand-gold text-black text-sm font-bold font-label tracking-[0.15em] uppercase hover:bg-brand-gold/90 transition-all"
+                    style={{ boxShadow: '0 0 30px rgba(246,196,74,0.15)' }}
+                  >
+                    CONTINUE →
+                  </button>
                 </motion.div>
               )}
             </motion.div>
