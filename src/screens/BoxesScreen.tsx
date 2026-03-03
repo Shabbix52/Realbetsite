@@ -559,11 +559,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
               {/* Description */}
               <p className="text-white/70 text-sm mb-6 sm:mb-10 max-w-md leading-relaxed">
-                Three boxes. One score. Everything counts.<br /><br />
-                Bronze and Silver are pure luck. Gold rewards your reach.<br /><br />
+                Three boxes. One score. Everything counts. Bronze and Silver are pure luck. Gold rewards your reach.<br />
                 Your Power Score determines:<br />
                 ▸ Real bonus money<br />
-                ▸ Season 1 leaderboard rank<br /><br />
+                ▸ Season 1 leaderboard rank<br />
                 Open all three. The House is keeping track.
               </p>
 
@@ -578,7 +577,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     whileHover={box.state === 'ready' ? { y: -8, scale: 1.02 } : {}}
                     whileTap={box.state === 'ready' ? { scale: 0.97 } : {}}
                     onClick={() => box.state === 'ready' ? openBox(i) : undefined}
-                    className={`relative rounded-2xl p-6 sm:p-10 text-center min-h-[280px] sm:min-h-[360px] flex flex-col items-center justify-center transition-all duration-500 backdrop-blur-md ${
+                    className={`relative rounded-2xl p-4 sm:p-7 text-center min-h-[220px] sm:min-h-[280px] flex flex-col items-center justify-center transition-all duration-500 backdrop-blur-md ${
                       box.state === 'ready'
                         ? 'cursor-pointer'
                         : box.state === 'locked'
@@ -608,21 +607,21 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     <div className="mb-3 sm:mb-4 relative z-[1]">
                       {box.state === 'locked' ? (
                         <div className="relative">
-                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain opacity-30 grayscale" />
+                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-24 h-24 sm:w-32 sm:h-32 object-contain opacity-30 grayscale" />
                           <LockIcon className="w-5 h-5 text-white/40 absolute bottom-0 right-0" />
                         </div>
                       ) : box.state === 'opening' ? (
-                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain animate-bounce" />
+                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-24 h-24 sm:w-32 sm:h-32 object-contain animate-bounce" />
                       ) : box.state === 'revealed' ? (
                         <motion.div
                           initial={{ scale: 0.5 }}
                           animate={{ scale: 1 }}
                           transition={{ type: 'spring', damping: 12 }}
                         >
-                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-32 h-32 sm:w-40 sm:h-40 object-contain opacity-60" />
+                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-20 h-20 sm:w-28 sm:h-28 object-contain opacity-60" />
                         </motion.div>
                       ) : (
-                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain" />
+                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-24 h-24 sm:w-32 sm:h-32 object-contain" />
                       )}
                     </div>
 
