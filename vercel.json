@@ -8,6 +8,14 @@
       "destination": "/oauth-callback.html"
     },
     {
+      "source": "/share/:twitterId",
+      "destination": "https://realbetsite-production.up.railway.app/share/:twitterId"
+    },
+    {
+      "source": "/share-image/:twitterId.png",
+      "destination": "https://realbetsite-production.up.railway.app/share-image/:twitterId.png"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -1024,7 +1024,7 @@ app.post('/auth/share-image', express.json({ limit: '2mb' }), async (req, res) =
       [twitterId, base64Data]
     );
     await redis.del(`scores:${twitterId}`);
-    const shareUrl = `${SERVER_URL}/share/${twitterId}`;
+    const shareUrl = `${CLIENT_URL}/share/${twitterId}`;
     res.json({ success: true, shareUrl });
   } catch (err) {
     console.error('Share image save error:', err.message);
@@ -1058,7 +1058,7 @@ app.get('/share/:twitterId', async (req, res) => {
     const user = rows[0];
     const username = user?.username || 'Player';
     const points = user?.total_points || 0;
-    const imageUrl = user?.share_image ? `${SERVER_URL}/share-image/${twitterId}.png` : `${SERVER_URL}/VIPcard.png`;
+    const imageUrl = user?.share_image ? `${CLIENT_URL}/share-image/${twitterId}.png` : `${CLIENT_URL}/VIPcard.png`;
     const title = `@${username} — ${points.toLocaleString()} Power Points`;
     const description = `SEASON 1 ALLOCATION | The House is open. #RealBetSeason1`;
     const siteUrl = CLIENT_URL;
@@ -1075,7 +1075,7 @@ app.get('/share/:twitterId', async (req, res) => {
   <meta property="og:image" content="${imageUrl}" />
   <meta property="og:image:width" content="912" />
   <meta property="og:image:height" content="588" />
-  <meta property="og:url" content="${SERVER_URL}/share/${twitterId}" />
+  <meta property="og:url" content="${CLIENT_URL}/share/${twitterId}" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />

@@ -460,8 +460,11 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
       // Fall through — still open tweet with text only
     }
 
+    const refLine = referralCode
+      ? `\n\nJoin with my link: ${import.meta.env.VITE_CLIENT_URL || window.location.origin}?ref=${referralCode}`
+      : '';
     const text = encodeURIComponent(
-      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Score\n\n@RealBet | The House is open.\n\n${shareLink}\n\n#RealBetSeason1`,
+      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Score\n\n@RealBet | The House is open.\n\n${shareLink}${refLine}\n\n#RealBetSeason1`,
     );
     // Open tweet window
     const a = document.createElement('a');
@@ -973,7 +976,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
                       <p className="text-2xl font-bold font-display text-brand-red">60%</p>
-                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Play Credit</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">$Real Reward</p>
                     </div>
                     <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
                       <p className="text-2xl font-bold font-display text-brand-red">40%</p>
@@ -994,7 +997,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
-                          <span className="text-sm text-rb-muted/70 font-mono">Play Credit</span>
+                          <span className="text-sm text-rb-muted/70 font-mono">$Real Reward</span>
                         </div>
                         <span className="text-lg font-bold font-display text-rb-muted tracking-wider">${split.freePlay.dollars.toLocaleString()}</span>
                       </div>
@@ -1075,7 +1078,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                   </div>
 
                   <p className="text-rb-muted/30 text-[10px] font-mono text-center tracking-wider">
-                    {tier.label} tier • {split.freePlay.wager}x playthrough on Play Credit
+                    {tier.label} tier • {split.freePlay.wager}x playthrough on $Real reward
                   </p>
                 </motion.div>
               )}
