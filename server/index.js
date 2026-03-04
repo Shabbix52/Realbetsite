@@ -229,19 +229,26 @@ function verifyHubCallback(twitterHandle, pfpUrl, ts, sig) {
 
 /** Grant $REAL bonus via Hub API */
 async function grantRealBonus(twitterHandle, amount) {
-  const body = JSON.stringify({
+  // Hub API expects integer amount in $REAL
+  const intAmount = Math.round(amount);
+  if (intAmount <= 0) {
+    return { ok: false, status: 400, data: { error: 'Amount must be greater than 0' } };
+  }
+  const payload = {
     twitter_handle: twitterHandle,
     type: 'real',
-    amount,
-    metadata: { source: 'season1_claim' },
-  });
+    amount: intAmount,
+  };
+  const body = JSON.stringify(payload);
   const { ts, sig } = signHubRequest(body);
+  console.log(`Hub grant request: POST ${HUB_API_BASE}/api/bonuses`, payload);
   const res = await fetch(`${HUB_API_BASE}/api/bonuses`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Timestamp': ts, 'X-Signature': sig },
     body,
   });
-  return { ok: res.ok, status: res.status, data: await res.json() };
+  const data = await res.json();
+  return { ok: res.ok, status: res.status, data };
 }
 
 // ─────────────────────────────────────────────
