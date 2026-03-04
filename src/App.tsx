@@ -31,7 +31,7 @@ function loadUserProfile(): Partial<UserData> | null {
   } catch { return null; }
 }
 
-function saveUserProfile(data: { twitterId: string; username: string; pfp: string; isNewUser?: boolean }) {
+function saveUserProfile(data: { twitterId: string; username: string; pfp: string; isNewUser?: boolean; totalPoints?: number; followersCount?: number; tierName?: string }) {
   try {
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(data));
   } catch { /* ignore */ }
@@ -144,7 +144,7 @@ function App() {
 
   const savedProfile = loadUserProfile();
   const [userData, setUserData] = useState<UserData>(() => {
-    const profile = mobileOAuthResult || savedProfile;
+    const profile: Partial<UserData> | null = mobileOAuthResult || savedProfile;
     if (mobileOAuthResult) {
       // Persist the returned profile so future mounts don't need the URL param
       try { localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(mobileOAuthResult)); } catch { /* ignore */ }
@@ -153,9 +153,9 @@ function App() {
       twitterId: profile?.twitterId || '',
       username: profile?.username || 'degen_whale',
       pfp: profile?.pfp || 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale',
-      tierName: 'House Legend',
-      totalPoints: 0,
-      followersCount: 0,
+      tierName: profile?.tierName || 'House Legend',
+      totalPoints: profile?.totalPoints || 0,
+      followersCount: profile?.followersCount || 0,
       isNewUser: mobileOAuthResult?.isNewUser,
     };
   });
@@ -165,26 +165,28 @@ function App() {
   }, []);
 
   const handleUserProfileUpdate = useCallback((twitterId: string, username: string, pfp: string, isNewUser?: boolean) => {
-    setUserData(prev => ({ ...prev, twitterId, username, pfp, isNewUser }));
-    saveUserProfile({ twitterId, username, pfp, isNewUser });
+    setUserData(prev => {
+      const updated = { ...prev, twitterId, username, pfp, isNewUser };
+      saveUserProfile(updated);
+      return updated;
+    });
   }, []);
 
   const handleBoxesDone = useCallback((points: number, tierName: string, followersCount: number) => {
-    setUserData(prev => ({
-      ...prev,
-      totalPoints: points,
-      tierName,
-      followersCount,
-    }));
+    setUserData(prev => {
+      const updated = { ...prev, totalPoints: points, tierName, followersCount };
+      saveUserProfile(updated);
+      return updated;
+    });
     setScreen('vip');
   }, []);
 
   const handleUpdatePoints = useCallback((totalPoints: number, followersCount: number) => {
-    setUserData(prev => ({
-      ...prev,
-      totalPoints,
-      followersCount,
-    }));
+    setUserData(prev => {
+      const updated = { ...prev, totalPoints, followersCount };
+      saveUserProfile(updated);
+      return updated;
+    });
   }, []);
 
   const handleLogout = useCallback(() => {

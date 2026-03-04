@@ -159,6 +159,7 @@ async function initDB() {
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS share_post_url TEXT`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS shared_at TIMESTAMPTZ`);
     // Claim flow columns (hub connect + $REAL grant)
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS share_image TEXT`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS account_linked BOOLEAN DEFAULT FALSE`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS hub_bonus_id VARCHAR(100)`);
@@ -227,17 +228,16 @@ function verifyHubCallback(twitterHandle, pfpUrl, ts, sig) {
   return true;
 }
 
-/** Grant $REAL bonus via Hub API */
-async function grantRealBonus(twitterHandle, amount) {
-  // Hub API expects integer amount in $REAL
-  const intAmount = Math.round(amount);
-  if (intAmount <= 0) {
-    return { ok: false, status: 400, data: { error: 'Amount must be greater than 0' } };
+/** Grant points bonus via Hub API */
+async function grantHubPoints(twitterHandle, points) {
+  const intPoints = Math.round(points);
+  if (intPoints <= 0) {
+    return { ok: false, status: 400, data: { error: 'Points must be greater than 0' } };
   }
   const payload = {
     twitter_handle: twitterHandle,
-    type: 'real',
-    amount: intAmount,
+    type: 'points',
+    amount: intPoints,
   };
   const body = JSON.stringify(payload);
   const { ts, sig } = signHubRequest(body);
@@ -892,15 +892,14 @@ async function handleConnectCallback(req, res) {
     }
 
     const totalPoints = row.total_points;
-    const allocationDollars = Math.round((totalPoints / 20) * 100) / 100;
 
     if (!BONUS_API_SECRET) {
       console.error('BONUS_API_SECRET not configured');
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=config_error`);
     }
 
-    // Grant $REAL via hub API
-    const hubResult = await grantRealBonus(effectiveTwitterHandle, allocationDollars);
+    // Grant points via hub API
+    const hubResult = await grantHubPoints(effectiveTwitterHandle, totalPoints);
     console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status}`, hubResult.data);
 
     if (!hubResult.ok) {
@@ -911,13 +910,13 @@ async function handleConnectCallback(req, res) {
     // Mark as claimed
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
-      [hubResult.data.bonus_id || null, allocationDollars, targetUid]
+      [hubResult.data.bonus_id || null, totalPoints, targetUid]
     );
 
     // Bust cache
     await redis.del(`scores:${targetUid}`);
 
-    console.log(`✓ Claimed $${allocationDollars} $REAL for @${effectiveTwitterHandle} (${targetUid})`);
+    console.log(`✓ Claimed ${totalPoints} points for @${effectiveTwitterHandle} (${targetUid})`);
     return res.redirect(`${CLIENT_URL}?claim_result=success`);
   } catch (err) {
     console.error('Connect callback error:', err.message);
@@ -949,9 +948,8 @@ app.post('/auth/claim', async (req, res) => {
     if (!BONUS_API_SECRET) return res.status(500).json({ error: 'Server not configured for claims' });
 
     const totalPoints = row.total_points;
-    const allocationDollars = Math.round((totalPoints / 20) * 100) / 100;
 
-    const hubResult = await grantRealBonus(row.username, allocationDollars);
+    const hubResult = await grantHubPoints(row.username, totalPoints);
     console.log(`Hub claim result for @${row.username}: ${hubResult.status}`, hubResult.data);
 
     if (!hubResult.ok) {
@@ -961,12 +959,12 @@ app.post('/auth/claim', async (req, res) => {
 
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
-      [hubResult.data.bonus_id || null, allocationDollars, twitterId]
+      [hubResult.data.bonus_id || null, totalPoints, twitterId]
     );
     await redis.del(`scores:${twitterId}`);
 
-    console.log(`✓ Direct claim $${allocationDollars} $REAL for @${row.username} (${twitterId})`);
-    res.json({ success: true, bonusId: hubResult.data.bonus_id, amount: allocationDollars });
+    console.log(`✓ Direct claim ${totalPoints} points for @${row.username} (${twitterId})`);
+    res.json({ success: true, bonusId: hubResult.data.bonus_id, amount: totalPoints });
   } catch (err) {
     console.error('Claim error:', err.message);
     res.status(500).json({ error: 'Server error' });
@@ -1000,6 +998,97 @@ app.get('/auth/claim-status/:twitterId', async (req, res) => {
 
 // ─────────────────────────────────────────────
 //  SHARE — Record that a user shared on X
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+//  SHARE IMAGE — Capture & serve VIP card screenshots
+// ─────────────────────────────────────────────
+
+// Upload VIP card screenshot (needs larger body limit)
+app.post('/auth/share-image', express.json({ limit: '2mb' }), async (req, res) => {
+  const { twitterId, imageBase64 } = req.body;
+  if (!twitterId || !imageBase64) return res.status(400).json({ error: 'twitterId and imageBase64 required' });
+  // Validate: must be a data URI or raw base64 (PNG)
+  const base64Data = imageBase64.startsWith('data:') ? imageBase64 : `data:image/png;base64,${imageBase64}`;
+  // Limit to ~1.5MB of base64
+  if (base64Data.length > 2_000_000) return res.status(400).json({ error: 'Image too large' });
+  try {
+    await pool.query(
+      `INSERT INTO scores (twitter_id, share_image)
+       VALUES ($1, $2)
+       ON CONFLICT (twitter_id) DO UPDATE SET share_image = $2`,
+      [twitterId, base64Data]
+    );
+    await redis.del(`scores:${twitterId}`);
+    const shareUrl = `${SERVER_URL}/share/${twitterId}`;
+    res.json({ success: true, shareUrl });
+  } catch (err) {
+    console.error('Share image save error:', err.message);
+    res.status(500).json({ error: 'Failed to save share image' });
+  }
+});
+
+// Serve the VIP card image as PNG
+app.get('/share-image/:twitterId.png', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT share_image FROM scores WHERE twitter_id = $1', [req.params.twitterId]);
+    if (!rows[0]?.share_image) return res.status(404).send('Not found');
+    const dataUri = rows[0].share_image;
+    const matches = dataUri.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+    if (!matches) return res.status(404).send('Not found');
+    const imgBuffer = Buffer.from(matches[2], 'base64');
+    res.set('Content-Type', `image/${matches[1]}`);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(imgBuffer);
+  } catch (err) {
+    console.error('Share image serve error:', err.message);
+    res.status(500).send('Error');
+  }
+});
+
+// OG share page — serves HTML with meta tags so Twitter unfurls the VIP card image
+app.get('/share/:twitterId', async (req, res) => {
+  const { twitterId } = req.params;
+  try {
+    const { rows } = await pool.query('SELECT username, total_points, share_image FROM scores WHERE twitter_id = $1', [twitterId]);
+    const user = rows[0];
+    const username = user?.username || 'Player';
+    const points = user?.total_points || 0;
+    const imageUrl = user?.share_image ? `${SERVER_URL}/share-image/${twitterId}.png` : `${SERVER_URL}/VIPcard.png`;
+    const title = `@${username} — ${points.toLocaleString()} Power Points`;
+    const description = `SEASON 1 ALLOCATION | The House is open. #RealBetSeason1`;
+    const siteUrl = CLIENT_URL;
+
+    res.set('Content-Type', 'text/html');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${title}</title>
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:image" content="${imageUrl}" />
+  <meta property="og:image:width" content="912" />
+  <meta property="og:image:height" content="588" />
+  <meta property="og:url" content="${SERVER_URL}/share/${twitterId}" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${imageUrl}" />
+  <meta http-equiv="refresh" content="0;url=${siteUrl}" />
+</head>
+<body style="background:#0a0b0f;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
+  <p>Redirecting to RealBet…</p>
+</body>
+</html>`);
+  } catch (err) {
+    console.error('Share page error:', err.message);
+    res.redirect(CLIENT_URL);
+  }
+});
+
 // ─────────────────────────────────────────────
 
 app.post('/auth/share', async (req, res) => {

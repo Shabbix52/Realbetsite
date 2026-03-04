@@ -1,4 +1,5 @@
-﻿import { useState, useRef, useCallback, useEffect } from 'react';
+﻿import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import html2canvas from 'html2canvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
@@ -86,8 +87,36 @@ interface VIPCardProps {
   realPoints: number;
 }
 
-export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }: VIPCardProps) => {
+export interface VIPCardHandle {
+  captureImage: () => Promise<string | null>;
+}
+
+export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, displayPoints, freePlayDollars, realPoints }, ref) => {
   const cardRef = useRef<HTMLDivElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    captureImage: async () => {
+      if (!cardRef.current) return null;
+      try {
+        // Reset tilt/animations before capture
+        const el = cardRef.current;
+        const prevTransform = el.style.transform;
+        el.style.transform = 'none';
+        const canvas = await html2canvas(el, {
+          backgroundColor: '#0a0b0f',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+        });
+        el.style.transform = prevTransform;
+        return canvas.toDataURL('image/png');
+      } catch (err) {
+        console.error('Card capture failed:', err);
+        return null;
+      }
+    },
+  }));
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
 
@@ -214,7 +243,8 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
       </div>
     </div>
   );
-};
+});
+VIPCard.displayName = 'VIPCard';
 
 /* ── Lock Icon ── */
 const LockIcon = ({ className }: { className?: string }) => (
@@ -234,6 +264,8 @@ interface VIPScreenProps {
 }
 
 const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScreenProps) => {
+  const vipCardRef = useRef<VIPCardHandle>(null);
+
   // Persist share state per twitterId so it survives refreshes/re-logins
   const sharedKey = userData.twitterId ? `realbet_shared_${userData.twitterId}` : null;
   const [shared, setShared] = useState(() => {
@@ -388,9 +420,40 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const split = calculateRewardSplit(powerScore, tier);
   const displayPoints = useCountUp(powerScore, 1200);
 
-  const handleShare = () => {
+  const [shareLoading, setShareLoading] = useState(false);
+
+  const handleShare = async () => {
+    if (shareLoading) return;
+    setShareLoading(true);
+
+    // Build the share URL (will be replaced with OG URL after upload)
+    let shareLink = `${import.meta.env.VITE_CLIENT_URL || window.location.origin}`;
+    if (referralCode) shareLink += `?ref=${referralCode}`;
+
+    try {
+      // Capture the VIP card as a screenshot
+      const imageBase64 = await vipCardRef.current?.captureImage();
+      if (imageBase64 && userData.twitterId) {
+        // Upload to server
+        const res = await fetch(getApiUrl('/auth/share-image'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ twitterId: userData.twitterId, imageBase64 }),
+        });
+        const data = await res.json();
+        if (data.shareUrl) {
+          // Use the OG share page URL so Twitter unfurls the card image
+          shareLink = data.shareUrl;
+          if (referralCode) shareLink += `?ref=${referralCode}`;
+        }
+      }
+    } catch (err) {
+      console.error('Share image upload failed:', err);
+      // Fall through — still open tweet with text only
+    }
+
     const text = encodeURIComponent(
-      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Points\n\n@RealBet | The House is open.\n\n#RealBetSeason1`,
+      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Points\n\n@RealBet | The House is open.\n\n${shareLink}\n\n#RealBetSeason1`,
     );
     // Open tweet window
     const a = document.createElement('a');
@@ -400,6 +463,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setShareLoading(false);
     // Show modal to collect post URL after a short delay
     setTimeout(() => setShowShareModal(true), 1500);
   };
@@ -657,23 +721,37 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         <div className="flex flex-col lg:flex-row gap-5 sm:gap-8 items-start">
           {/* ═══ Left Column: VIP Card + Share + Referral ═══ */}
           <motion.div variants={itemVariants} className="flex-[2] w-full space-y-3 sm:space-y-4">
-            <VIPCard userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
+            <VIPCard ref={vipCardRef} userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
 
             {/* Share on X button */}
             <button
               onClick={handleShare}
-              disabled={shared}
+              disabled={shared || shareLoading}
               style={{ touchAction: 'manipulation' }}
               className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
                 shared
                   ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                  : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
+                  : shareLoading
+                    ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 border border-[#1DA1F2]/10 cursor-wait'
+                    : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
               }`}
             >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
-              {shared ? 'SHARED ✓' : 'SHARE ON X'}
+              {shareLoading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" className="opacity-75" />
+                  </svg>
+                  CAPTURING CARD...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  {shared ? 'SHARED ✓' : 'SHARE ON X'}
+                </>
+              )}
             </button>
           </motion.div>
 
@@ -914,8 +992,22 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       </p>
                     )}
                   </div>
+                ) : !shared ? (
+                  /* ── Locked — must share on X first ── */
+                  <div className="w-full py-4 rounded-lg bg-white/5 border border-white/10 text-center space-y-1">
+                    <p className="text-white/40 text-sm font-bold font-label tracking-wider flex items-center justify-center gap-2">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      CLAIM LOCKED
+                    </p>
+                    <p className="text-white/30 text-xs font-label">
+                      Share your score on X to unlock claiming
+                    </p>
+                  </div>
                 ) : (
-                  /* ── Active claim button ── */
+                  /* ── Active claim button (unlocked after X share) ── */
                   <>
                     <motion.div
                       className="absolute -inset-3 rounded-lg pointer-events-none"
