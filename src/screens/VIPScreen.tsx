@@ -5,6 +5,8 @@ import { useCountUp } from '../hooks/useCountUp';
 import { getTierForFollowers, calculateAllocationDollars, calculateRewardSplit } from '../tierConfig';
 import { getApiUrl } from '../config';
 
+const HUB_CONNECT_URL = import.meta.env.VITE_HUB_CONNECT_URL || 'https://hub.realbet.io/connect';
+
 /* ── Stagger animation variants ── */
 const containerVariants = {
   hidden: {},
@@ -80,32 +82,34 @@ const RedDivider = () => (
 interface VIPCardProps {
   userData: UserData;
   displayPoints: number;
+  freePlayDollars: number;
+  realPoints: number;
 }
 
-export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
+export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }: VIPCardProps) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
-
-  const sparkles = [
-    { top: '15%', left: '80%', delay: 0 },
-    { top: '60%', left: '90%', delay: 0.8 },
-    { top: '30%', left: '5%', delay: 1.5 },
-    { top: '85%', left: '70%', delay: 2.2 },
-    { top: '10%', left: '45%', delay: 0.5 },
-  ];
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    const x = ((e.clientX - centerX) / rect.width) * 12;
-    const y = -((e.clientY - centerY) / rect.height) * 12;
+    const x = ((e.clientX - centerX) / rect.width) * 10;
+    const y = -((e.clientY - centerY) / rect.height) * 10;
     setTilt({ x: y, y: x });
   }, []);
 
   const handleMouseLeave = useCallback(() => { setTilt({ x: 0, y: 0 }); setIsHovered(false); }, []);
+
+  /*
+   * Layout percentages based on 1080×650 design:
+   *   Avatar:       157.4×155.3  @ (203.7, 175.1)  → left 18.86%  top 26.94%  w 14.57%
+   *   Username:     425×77.3     @ (400.3, 252.8)   → left 37.06%  top 38.89%  w 39.35%
+   *   Play Credit:  256.2×65     @ (186, 431.6)     → left 17.22%  top 66.40%  w 23.72%
+   *   Real Points:  256.2×65     @ (506.1, 431.6)   → left 46.86%  top 66.40%  w 23.72%
+   */
 
   return (
     <div className="mx-auto w-full max-w-2xl" style={{ perspective: '1200px' }}>
@@ -114,8 +118,9 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={handleMouseLeave}
-        className="relative w-full aspect-[3/2] sm:aspect-[16/9] rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
+        className="relative w-full rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
         style={{
+          aspectRatio: '1080 / 650',
           transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
           transformStyle: 'preserve-3d',
         }}
@@ -123,127 +128,92 @@ export const VIPCard = ({ userData, displayPoints }: VIPCardProps) => {
         <div
           className="absolute inset-0 rounded-2xl overflow-hidden"
           style={{
-            background: 'linear-gradient(135deg, #12131A 0%, #0D0E14 50%, #07070B 100%)',
-            border: '1px solid rgba(246, 196, 74, 0.2)',
             boxShadow: isHovered
-              ? '0 0 60px rgba(246,196,74,0.15), 0 30px 60px rgba(0,0,0,0.6)'
-              : '0 0 30px rgba(246,196,74,0.06), 0 15px 40px rgba(0,0,0,0.5)',
+              ? '0 0 60px rgba(191,18,32,0.15), 0 30px 60px rgba(0,0,0,0.6)'
+              : '0 0 30px rgba(191,18,32,0.06), 0 15px 40px rgba(0,0,0,0.5)',
           }}
         >
-          {/* Diamond pattern overlay — bottom third only */}
+          {/* Card template image */}
+          <img
+            src="/VIPcard.png"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover rounded-2xl pointer-events-none select-none"
+            draggable={false}
+          />
+
+          {/* Holographic sheen on hover */}
           <div
-            className="absolute bottom-0 left-0 right-0 h-1/3 pointer-events-none"
+            className="absolute inset-0 pointer-events-none opacity-10 mix-blend-overlay rounded-2xl"
             style={{
-              background: `
-                repeating-linear-gradient(45deg, rgba(246,196,74,0.03) 0px, rgba(246,196,74,0.03) 10px, transparent 10px, transparent 20px),
-                repeating-linear-gradient(-45deg, rgba(246,196,74,0.02) 0px, rgba(246,196,74,0.02) 10px, transparent 10px, transparent 20px),
-                radial-gradient(ellipse at 50% 100%, rgba(246,196,74,0.06), transparent 70%)
-              `,
+              background: `linear-gradient(${100 + tilt.y * 3}deg, transparent 25%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 55%, transparent 75%)`,
             }}
           />
 
-          {/* Holographic sheen */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-10 mix-blend-overlay"
-            style={{
-              background: `linear-gradient(${100 + tilt.y * 3}deg, transparent 25%, rgba(246,196,74,0.5) 45%, rgba(255,235,170,0.2) 50%, rgba(246,196,74,0.5) 55%, transparent 75%)`,
-            }}
-          />
-
-          {/* Animated sheen */}
+          {/* Animated sheen sweep */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
             <div
-              className="absolute inset-0 animate-sheen opacity-[0.06]"
+              className="absolute inset-0 animate-sheen opacity-[0.05]"
               style={{
-                background: 'linear-gradient(90deg, transparent 0%, rgba(246,196,74,0.4) 50%, transparent 100%)',
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
                 width: '40%',
                 height: '100%',
               }}
             />
           </div>
 
-          {/* Mouse-follow gold highlight */}
+          {/* Mouse-follow highlight */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-15"
+            className="absolute inset-0 pointer-events-none opacity-10 rounded-2xl"
             style={{
-              background: `radial-gradient(circle at ${50 + tilt.y * 2}% ${45 + tilt.x * 2}%, rgba(246,196,74,0.2), transparent 50%)`,
+              background: `radial-gradient(circle at ${50 + tilt.y * 2}% ${45 + tilt.x * 2}%, rgba(255,255,255,0.15), transparent 50%)`,
             }}
           />
 
-          {/* Gold sparkle dots */}
-          {sparkles.map((s, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-brand-gold rounded-full animate-shimmer"
-              style={{ top: s.top, left: s.left, animationDelay: `${s.delay}s`, animationDuration: `${2 + Math.random()}s` }}
+          {/* ── Avatar ── */}
+          <div
+            className="absolute rounded-full overflow-hidden"
+            style={{ left: '18.86%', top: '26.94%', width: '14.57%', aspectRatio: '1' }}
+          >
+            <img
+              src={userData.pfp}
+              alt="avatar"
+              className="w-full h-full object-cover"
             />
-          ))}
-
-          {/* Top-left: Logo */}
-          <img
-            src="/realbet-logo.png"
-            alt="RealBet"
-            className="absolute top-3 sm:top-5 left-4 sm:left-6 h-4 sm:h-5 md:h-6 object-contain pointer-events-none opacity-50"
-            draggable={false}
-          />
-
-          {/* SEASON 1 label */}
-          <p className="absolute top-8 sm:top-11 left-4 sm:left-6 font-label text-[7px] sm:text-[8px] tracking-[0.3em] text-white/50">
-            SEASON 1
-          </p>
-
-          {/* Top-center: VIP title */}
-          <div className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 text-center">
-            <div className="text-2xl sm:text-4xl md:text-5xl font-display font-bold leading-none tracking-wider text-white">VIP</div>
-            <div className="text-brand-gold text-[8px] sm:text-[10px] md:text-xs tracking-[0.4em] font-label mt-0.5">CASINO</div>
           </div>
 
-          {/* Top-right: QR grid */}
-          <div className="absolute top-3 sm:top-4 right-3 sm:right-5 w-9 h-9 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white/5 rounded border border-rb-border/50 grid grid-cols-5 grid-rows-5 gap-px p-0.5 sm:p-1">
-            {Array.from({ length: 25 }, (_, i) => (
-              <div key={i} className={`rounded-[1px] ${Math.random() > 0.4 ? 'bg-white/50' : 'bg-transparent'}`} />
-            ))}
-          </div>
-
-          {/* Left-center: Avatar + info side by side */}
-          <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/3 flex items-center gap-2.5 sm:gap-4 max-w-[65%]">
-            <div className="relative flex-shrink-0">
-              <img
-                src={userData.pfp}
-                alt="avatar"
-                className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full border-2 border-brand-gold/60 bg-rb-card object-cover"
-              />
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#1DA1F2] flex items-center justify-center border-2 border-rb-bg">
-                <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </div>
-            </div>
-            <div className="min-w-0">
-              <p className="text-base sm:text-lg md:text-xl font-bold text-white truncate">@{userData.username}</p>
-              <p className="text-brand-gold text-xs sm:text-sm font-medium">{userData.tierName}</p>
-            </div>
-          </div>
-
-          {/* Bottom-left: Points */}
-          <div className="absolute bottom-3 sm:bottom-4 left-4 sm:left-6">
-            <p className="text-brand-gold/60 text-[8px] sm:text-[10px] tracking-[0.2em] font-label mb-0.5">POWER POINTS</p>
-            <p className="text-brand-gold text-lg sm:text-2xl md:text-3xl font-bold font-label">
-              {displayPoints.toLocaleString()} power pts
+          {/* ── Username ── */}
+          <div
+            className="absolute flex items-center"
+            style={{ left: '37.06%', top: '38.89%', width: '39.35%', height: '11.89%' }}
+          >
+            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(0.7rem, 2.8cqi, 1.5rem)' }}>
+              @{userData.username}
             </p>
           </div>
 
-          {/* Bottom-center: Diamond — hidden on small mobiles to prevent overlap */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-brand-gold/50 text-lg hidden sm:block">◆</div>
+          {/* ── Play Credit (bottom-left stat) ── */}
+          <div
+            className="absolute flex flex-col justify-center"
+            style={{ left: '17.22%', top: '66.40%', width: '23.72%', height: '10%' }}
+          >
+            <p className="text-white font-bold font-label leading-tight" style={{ fontSize: 'clamp(0.65rem, 2.5cqi, 1.35rem)' }}>
+              ${freePlayDollars.toLocaleString()}
+            </p>
+          </div>
 
-          {/* Bottom-right: Tagline */}
-          <p className="absolute bottom-2 sm:bottom-3 right-3 sm:right-5 text-[7px] sm:text-[8px] text-white/25 italic font-label tracking-wider">
-            The House remembers.
-          </p>
+          {/* ── Real Points (bottom-right stat) ── */}
+          <div
+            className="absolute flex flex-col justify-center"
+            style={{ left: '46.86%', top: '66.40%', width: '23.72%', height: '10%' }}
+          >
+            <p className="text-white font-bold font-label leading-tight" style={{ fontSize: 'clamp(0.65rem, 2.5cqi, 1.35rem)' }}>
+              {realPoints.toLocaleString()}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Reflection — subtle, compact */}
+      {/* Reflection — subtle */}
       <div
         className="hidden sm:block w-full h-8 rounded-2xl mt-1 opacity-10 blur-sm pointer-events-none"
         style={{
@@ -286,6 +256,12 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
   const [shareUrlInput, setShareUrlInput] = useState('');
   const [shareUrlError, setShareUrlError] = useState('');
 
+  // ── Claim state ──
+  const [claimStatus, setClaimStatus] = useState<'idle' | 'linking' | 'claiming' | 'claimed' | 'error'>('idle');
+  const [accountLinked, setAccountLinked] = useState(false);
+  const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
+  const [claimError, setClaimError] = useState('');
+
   // ── Referral state ──
   const [referralCode, setReferralCode] = useState<string>('');
   const [referralCount, setReferralCount] = useState(0);
@@ -316,6 +292,14 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
         if (data?.hasShared && !shared) {
           setShared(true);
           if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch { /* ignore */ } }
+        }
+        // Restore claim status
+        if (data?.claimedAt) {
+          setClaimStatus('claimed');
+          setClaimedAmount(data.claimAmount || null);
+          setAccountLinked(true);
+        } else if (data?.accountLinked) {
+          setAccountLinked(true);
         }
       })
       .catch(() => {});
@@ -450,9 +434,67 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
     setShared(true);
   };
 
-  const handleClaim = () => {
-    window.open('https://realbet.io', '_blank');
+  const handleClaim = async () => {
+    if (claimStatus === 'claimed' || claimStatus === 'claiming' || claimStatus === 'linking') return;
+    setClaimError('');
+
+    // Check claim result from localStorage (set by App.tsx on return from hub)
+    const claimResult = localStorage.getItem('realbet_claim_result');
+    if (claimResult) {
+      localStorage.removeItem('realbet_claim_result');
+      if (claimResult === 'success') {
+        setClaimStatus('claimed');
+        setClaimedAmount(allocationDollars);
+        setAccountLinked(true);
+        return;
+      } else if (claimResult === 'already_claimed') {
+        setClaimStatus('claimed');
+        setAccountLinked(true);
+        return;
+      } else {
+        setClaimError('Something went wrong linking your account. Try again.');
+        return;
+      }
+    }
+
+    // If already linked but not claimed: call direct claim endpoint
+    if (accountLinked) {
+      setClaimStatus('claiming');
+      try {
+        const res = await fetch(getApiUrl('/auth/claim'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ twitterId: userData.twitterId }),
+        });
+        const data = await res.json();
+        if (res.ok && (data.success || data.alreadyClaimed)) {
+          setClaimStatus('claimed');
+          setClaimedAmount(data.amount || allocationDollars);
+        } else {
+          setClaimError(data.error || 'Failed to claim reward');
+          setClaimStatus('error');
+        }
+      } catch {
+        setClaimError('Network error — try again');
+        setClaimStatus('error');
+      }
+      return;
+    }
+
+    // Not linked yet: redirect to hub connect flow
+    setClaimStatus('linking');
+    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const returnUrl = encodeURIComponent(`${serverUrl}/auth/connect/callback?uid=${userData.twitterId}`);
+    window.location.href = `${HUB_CONNECT_URL}?return_url=${returnUrl}`;
   };
+
+  // On mount, check if we returned from hub connect
+  useEffect(() => {
+    const result = localStorage.getItem('realbet_claim_result');
+    if (result) {
+      handleClaim(); // Will process the stored result
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.section
@@ -621,7 +663,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
         <div className="flex flex-col lg:flex-row gap-5 sm:gap-8 items-start">
           {/* ═══ Left Column: VIP Card + Share + Referral ═══ */}
           <motion.div variants={itemVariants} className="flex-1 w-full space-y-3 sm:space-y-4">
-            <VIPCard userData={userData} displayPoints={displayPoints} />
+            <VIPCard userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
 
             {/* Share on X button */}
             <button
@@ -865,33 +907,84 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
               <RedDivider />
 
               {/* Claim button */}
-              <div className="relative">
-                <motion.div
-                  className="absolute -inset-3 rounded-lg pointer-events-none"
-                  animate={{ opacity: [0, 0.4, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 5 }}
-                  style={{
-                    background: 'radial-gradient(ellipse at center, hsl(355 83% 41% / 0.2), transparent 70%)',
-                    filter: 'blur(12px)',
-                  }}
-                />
-                <motion.button
-                  onClick={handleClaim}
-                  className="btn-fight pulse-glow w-full rounded-lg py-4 text-sm sm:text-base relative overflow-hidden"
-                  whileHover={{ scale: 1.02, boxShadow: '0 4px 50px hsla(355, 83%, 41%, 0.5)' }}
-                  whileTap={{ scale: 0.97 }}
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  <motion.div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.04) 50%, transparent 55%)',
-                    }}
-                    animate={{ x: ['-100%', '250%'] }}
-                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 6, ease: 'easeInOut' }}
-                  />
-                  CLAIM YOUR SEASON 1 REWARD →
-                </motion.button>
+              <div className="relative space-y-2">
+                {claimStatus === 'claimed' ? (
+                  /* ── Already claimed ── */
+                  <div className="w-full py-4 rounded-lg bg-green-500/15 border border-green-500/30 text-center">
+                    <p className="text-green-400 text-sm font-bold font-label tracking-wider">
+                      ✓ REWARD CLAIMED
+                    </p>
+                    {claimedAmount !== null && (
+                      <p className="text-green-400/60 text-xs font-label mt-1">
+                        ${claimedAmount.toLocaleString()} $REAL credited to your casino account
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* ── Active claim button ── */
+                  <>
+                    <motion.div
+                      className="absolute -inset-3 rounded-lg pointer-events-none"
+                      animate={{ opacity: [0, 0.4, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 5 }}
+                      style={{
+                        background: 'radial-gradient(ellipse at center, hsl(355 83% 41% / 0.2), transparent 70%)',
+                        filter: 'blur(12px)',
+                      }}
+                    />
+                    <motion.button
+                      onClick={handleClaim}
+                      disabled={claimStatus === 'claiming' || claimStatus === 'linking'}
+                      className={`btn-fight pulse-glow w-full rounded-lg py-4 text-sm sm:text-base relative overflow-hidden ${
+                        (claimStatus === 'claiming' || claimStatus === 'linking') ? 'opacity-70 cursor-wait' : ''
+                      }`}
+                      whileHover={claimStatus === 'idle' || claimStatus === 'error' ? { scale: 1.02, boxShadow: '0 4px 50px hsla(355, 83%, 41%, 0.5)' } : {}}
+                      whileTap={claimStatus === 'idle' || claimStatus === 'error' ? { scale: 0.97 } : {}}
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.04) 50%, transparent 55%)',
+                        }}
+                        animate={{ x: ['-100%', '250%'] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 6, ease: 'easeInOut' }}
+                      />
+                      <AnimatePresence mode="wait">
+                        {claimStatus === 'linking' ? (
+                          <motion.span key="linking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2">
+                            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                            CONNECTING TO CASINO...
+                          </motion.span>
+                        ) : claimStatus === 'claiming' ? (
+                          <motion.span key="claiming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2">
+                            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                            CLAIMING $REAL...
+                          </motion.span>
+                        ) : accountLinked ? (
+                          <motion.span key="linked" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                            CLAIM ${allocationDollars.toLocaleString()} $REAL →
+                          </motion.span>
+                        ) : (
+                          <motion.span key="connect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                            LINK CASINO &amp; CLAIM REWARD →
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
+                  </>
+                )}
+
+                {/* Error message */}
+                {claimError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-brand-red text-xs font-label text-center"
+                  >
+                    {claimError}
+                  </motion.p>
+                )}
               </div>
 
               {/* Tier note */}

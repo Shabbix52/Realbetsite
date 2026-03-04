@@ -196,6 +196,48 @@ async function initRedis() {
 const oauthStore = new Map();
 
 // ─────────────────────────────────────────────
+//  HUB API — Connect + Bonus helpers
+// ─────────────────────────────────────────────
+
+const BONUS_API_SECRET = process.env.BONUS_API_SECRET || '';
+const HUB_API_BASE = process.env.HUB_API_BASE || 'https://hub.realbet.io';
+
+/** Generate HMAC headers for Hub API requests */
+function signHubRequest(body = '') {
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const message = `${ts}.${body}`;
+  const sig = crypto.createHmac('sha256', BONUS_API_SECRET).update(message).digest('hex');
+  return { ts, sig };
+}
+
+/** Verify HMAC signature from hub connect callback */
+function verifyHubCallback(twitterHandle, pfpUrl, ts, sig) {
+  const message = `${ts}.pfp_url=${pfpUrl}&twitter_handle=${twitterHandle}`;
+  const expected = crypto.createHmac('sha256', BONUS_API_SECRET).update(message).digest('hex');
+  if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) return false;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parseInt(ts, 10)) > 300) return false;
+  return true;
+}
+
+/** Grant $REAL bonus via Hub API */
+async function grantRealBonus(twitterHandle, amount) {
+  const body = JSON.stringify({
+    twitter_handle: twitterHandle,
+    type: 'real',
+    amount,
+    metadata: { source: 'season1_claim' },
+  });
+  const { ts, sig } = signHubRequest(body);
+  const res = await fetch(`${HUB_API_BASE}/api/bonuses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Timestamp': ts, 'X-Signature': sig },
+    body,
+  });
+  return { ok: res.ok, status: res.status, data: await res.json() };
+}
+
+// ─────────────────────────────────────────────
 //  TWITTER / X  — OAuth 2.0 with PKCE
 // ─────────────────────────────────────────────
 
@@ -682,6 +724,9 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
       discordUsername: row.discord_username || null,
       hasShared: !!row.shared_at,
       sharePostUrl: row.share_post_url || null,
+      accountLinked: !!row.account_linked,
+      claimedAt: row.claimed_at || null,
+      claimAmount: row.claim_amount ? parseFloat(row.claim_amount) : null,
       boxes: [
         { type: 'bronze', state: 'revealed', points: row.bronze_points, tierName: row.bronze_tier },
         { type: 'silver', state: 'revealed', points: row.silver_points, tierName: row.silver_tier },
@@ -696,6 +741,154 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
   } catch (err) {
     console.error('Score load error:', err.message);
     res.status(500).json({ error: 'Failed to load scores' });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  CLAIM — Hub Connect callback + $REAL grant
+// ─────────────────────────────────────────────
+
+const claimLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+app.use('/auth/connect', claimLimiter);
+app.use('/auth/claim', claimLimiter);
+
+/**
+ * GET /auth/connect/callback
+ * Hub redirects here after the user links their casino account.
+ * Verifies HMAC sig → marks linked → grants $REAL → redirects to client.
+ */
+app.get('/auth/connect/callback', async (req, res) => {
+  const { uid, twitter_handle, pfp_url, ts, sig } = req.query;
+
+  if (!uid || !twitter_handle || !ts || !sig) {
+    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_params`);
+  }
+
+  // Verify HMAC signature from hub
+  try {
+    if (!verifyHubCallback(String(twitter_handle), String(pfp_url || ''), String(ts), String(sig))) {
+      console.warn(`⚠️  Connect callback: invalid signature for @${twitter_handle}`);
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=invalid_signature`);
+    }
+  } catch (err) {
+    console.error('Signature verification error:', err.message);
+    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=sig_error`);
+  }
+
+  try {
+    // Mark user as linked
+    await pool.query('UPDATE scores SET account_linked = true WHERE twitter_id = $1', [uid]);
+
+    // Get user's scores to calculate allocation
+    const scoreResult = await pool.query('SELECT * FROM scores WHERE twitter_id = $1', [uid]);
+    if (scoreResult.rows.length === 0) {
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_not_found`);
+    }
+
+    const row = scoreResult.rows[0];
+    if (row.claimed_at) {
+      return res.redirect(`${CLIENT_URL}?claim_result=already_claimed`);
+    }
+
+    const totalPoints = row.total_points;
+    const allocationDollars = Math.round((totalPoints / 20) * 100) / 100;
+
+    if (!BONUS_API_SECRET) {
+      console.error('BONUS_API_SECRET not configured');
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=config_error`);
+    }
+
+    // Grant $REAL via hub API
+    const hubResult = await grantRealBonus(String(twitter_handle), allocationDollars);
+    console.log(`Hub grant result for @${twitter_handle}: ${hubResult.status}`, hubResult.data);
+
+    if (!hubResult.ok) {
+      console.error('Hub API error:', hubResult.data);
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=hub_error`);
+    }
+
+    // Mark as claimed
+    await pool.query(
+      'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
+      [hubResult.data.bonus_id || null, allocationDollars, uid]
+    );
+
+    // Bust cache
+    await redis.del(`scores:${uid}`);
+
+    console.log(`✓ Claimed $${allocationDollars} $REAL for @${twitter_handle} (${uid})`);
+    return res.redirect(`${CLIENT_URL}?claim_result=success`);
+  } catch (err) {
+    console.error('Connect callback error:', err.message);
+    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=server_error`);
+  }
+});
+
+/**
+ * POST /auth/claim
+ * For users who already linked their casino (account_linked = true) but haven't claimed yet.
+ */
+app.post('/auth/claim', async (req, res) => {
+  const { twitterId } = req.body;
+  if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
+
+  try {
+    const result = await pool.query('SELECT * FROM scores WHERE twitter_id = $1', [twitterId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const row = result.rows[0];
+    if (row.claimed_at) return res.json({ success: true, alreadyClaimed: true, claimedAt: row.claimed_at, amount: parseFloat(row.claim_amount) });
+    if (!row.account_linked) return res.status(400).json({ error: 'Casino account not linked. Complete the connect flow first.' });
+
+    if (!BONUS_API_SECRET) return res.status(500).json({ error: 'Server not configured for claims' });
+
+    const totalPoints = row.total_points;
+    const allocationDollars = Math.round((totalPoints / 20) * 100) / 100;
+
+    const hubResult = await grantRealBonus(row.username, allocationDollars);
+    console.log(`Hub claim result for @${row.username}: ${hubResult.status}`, hubResult.data);
+
+    if (!hubResult.ok) {
+      console.error('Hub API error on direct claim:', hubResult.data);
+      return res.status(502).json({ error: 'Failed to grant bonus', details: hubResult.data.error || hubResult.data });
+    }
+
+    await pool.query(
+      'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
+      [hubResult.data.bonus_id || null, allocationDollars, twitterId]
+    );
+    await redis.del(`scores:${twitterId}`);
+
+    console.log(`✓ Direct claim $${allocationDollars} $REAL for @${row.username} (${twitterId})`);
+    res.json({ success: true, bonusId: hubResult.data.bonus_id, amount: allocationDollars });
+  } catch (err) {
+    console.error('Claim error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * GET /auth/claim-status/:twitterId
+ * Quick check: is the user linked / has claimed?
+ */
+app.get('/auth/claim-status/:twitterId', async (req, res) => {
+  const { twitterId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT account_linked, claimed_at, claim_amount FROM scores WHERE twitter_id = $1',
+      [twitterId]
+    );
+    if (result.rows.length === 0) return res.json({ linked: false, claimed: false });
+    const row = result.rows[0];
+    res.json({
+      linked: !!row.account_linked,
+      claimed: !!row.claimed_at,
+      claimedAt: row.claimed_at || null,
+      amount: row.claim_amount ? parseFloat(row.claim_amount) : null,
+    });
+  } catch (err) {
+    console.error('Claim status error:', err.message);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

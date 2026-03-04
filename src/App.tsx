@@ -111,8 +111,27 @@ function processMobileOAuthReturn(): { twitterId: string; username: string; pfp:
 }
 const mobileOAuthResult = processMobileOAuthReturn();
 
+// Capture claim result from hub connect callback redirect
+const CLAIM_RESULT_KEY = 'realbet_claim_result';
+function captureClaimResult(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('claim_result');
+    if (!result) return null;
+    localStorage.setItem(CLAIM_RESULT_KEY, result);
+    // Clean URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete('claim_result');
+    url.searchParams.delete('claim_msg');
+    window.history.replaceState({}, '', url.pathname + (url.search || '') + (url.hash || ''));
+    return result;
+  } catch { return null; }
+}
+const claimResult = captureClaimResult();
+
 function App() {
   const [screen, setScreen] = useState<Screen>(() => {
+    if (claimResult && loadUserProfile()?.twitterId) return 'vip';
     if (mobileOAuthResult) return 'boxes';
     if (window.location.hash === '#admin') return 'admin';
     return 'hero';
