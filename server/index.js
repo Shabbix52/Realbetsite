@@ -777,8 +777,11 @@ app.get('/auth/hub-connect', (req, res) => {
     created: Date.now(),
   });
 
-  // Build our callback URL — hub will redirect back here with signed params
-  const returnUrl = `${SERVER_URL}/auth/connect/callback?state=${encodeURIComponent(state)}`;
+  // Build our callback URL — hub will redirect back here with signed params.
+  // IMPORTANT: return_url must NOT contain query params — the hub appends
+  // ?twitter_handle=...&pfp_url=...&ts=...&sig=...  which would collide.
+  // We embed our state token as a path segment instead.
+  const returnUrl = `${SERVER_URL}/auth/connect/callback/${state}`;
 
   const params = new URLSearchParams({
     return_url: returnUrl,
@@ -790,12 +793,15 @@ app.get('/auth/hub-connect', (req, res) => {
 });
 
 /**
- * GET /auth/connect/callback
+ * GET /auth/connect/callback/:state  (new — state in path)
+ * GET /auth/connect/callback          (legacy — state/uid in query)
+ *
  * Hub redirects here after the user links their casino account.
- * Verifies HMAC sig → marks linked → grants $REAL → redirects to client.
+ * Verifies HMAC sig → resolves user → marks linked → grants $REAL → redirects to client.
  */
-app.get('/auth/connect/callback', async (req, res) => {
-  const state = req.query.state || req.query.connect_state;
+async function handleConnectCallback(req, res) {
+  // State may arrive as path param (new) or query param (legacy)
+  const state = req.params.state || req.query.state || req.query.connect_state;
   const legacyUid = req.query.uid;
   const twitterHandleParam = req.query.twitter_handle || req.query.twitterHandle || req.query.username;
   const pfpUrl = req.query.pfp_url || req.query.pfpUrl || '';
@@ -805,15 +811,16 @@ app.get('/auth/connect/callback', async (req, res) => {
   const storedState = state ? hubConnectStateStore.get(String(state)) : null;
   const effectiveTwitterHandle = String(twitterHandleParam || storedState?.twitterHandle || '').trim();
 
+  console.log('Connect callback received:', {
+    url: req.originalUrl,
+    state: state ? `${String(state).slice(0, 8)}…` : null,
+    hasStoredState: !!storedState,
+    twitter_handle: effectiveTwitterHandle || '(empty)',
+    hasTs: !!ts,
+    hasSig: !!sig,
+  });
+
   if (!effectiveTwitterHandle || !ts || !sig) {
-    console.warn('Connect callback missing params:', {
-      keys: Object.keys(req.query || {}),
-      hasState: !!state,
-      hasStoredState: !!storedState,
-      hasTwitterHandle: !!effectiveTwitterHandle,
-      hasTs: !!ts,
-      hasSig: !!sig,
-    });
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_params`);
   }
 
@@ -828,23 +835,35 @@ app.get('/auth/connect/callback', async (req, res) => {
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=sig_error`);
   }
 
+  // ── Resolve target user ──
+  // Priority: stored state → legacy uid query param → DB lookup by verified twitter_handle
   let targetUid = null;
-  if (state) {
-    if (!storedState) {
-      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=invalid_state`);
-    }
+  if (state && storedState) {
     hubConnectStateStore.delete(String(state));
     if (storedState.twitterHandle !== effectiveTwitterHandle.toLowerCase()) {
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=state_mismatch`);
     }
     targetUid = storedState.uid;
   } else if (legacyUid) {
-    // Backward compatibility for older in-flight links that still include uid in return_url.
     targetUid = String(legacyUid);
+  } else {
+    // Fallback: HMAC already proved twitter_handle is authentic — look up by username
+    try {
+      const lookup = await pool.query(
+        'SELECT twitter_id FROM scores WHERE LOWER(username) = LOWER($1) LIMIT 1',
+        [effectiveTwitterHandle]
+      );
+      if (lookup.rows.length > 0) {
+        targetUid = lookup.rows[0].twitter_id;
+        console.log(`Resolved @${effectiveTwitterHandle} → uid ${targetUid} via DB lookup`);
+      }
+    } catch (e) {
+      console.error('DB lookup by username failed:', e.message);
+    }
   }
 
   if (!targetUid) {
-    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_state`);
+    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_not_found`);
   }
 
   try {
@@ -897,7 +916,12 @@ app.get('/auth/connect/callback', async (req, res) => {
     console.error('Connect callback error:', err.message);
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=server_error`);
   }
-});
+}
+
+// Route 1: NEW — state as path segment (hub appends ?twitter_handle&ts&sig cleanly)
+app.get('/auth/connect/callback/:state', handleConnectCallback);
+// Route 2: LEGACY — state (or uid) as query param
+app.get('/auth/connect/callback', handleConnectCallback);
 
 /**
  * POST /auth/claim
