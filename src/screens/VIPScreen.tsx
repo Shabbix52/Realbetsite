@@ -133,11 +133,11 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
   const handleMouseLeave = useCallback(() => { setTilt({ x: 0, y: 0 }); setIsHovered(false); }, []);
 
   /*
-   * Layout percentages based on 1750×1025 actual image:
-   *   Avatar:       290.1×290.1  @ (126.2, 101.5)   → left 7.21%   top 9.90%   w 16.58%  h 28.30%  (circle)
-   *   Username:     683.1×112.4  @ (533.4, 336.5)   → left 30.48%  top 32.83%  w 39.03%  h 10.97%
-   *   Real Reward:  361.3×146    @ (344.4, 625.5)   → left 19.68%  top 61.02%  w 20.65%  h 14.24%
-   *   Real Points:  361.3×146    @ (1027.6, 625.5)  → left 58.72%  top 61.02%  w 20.65%  h 14.24%
+   * Layout percentages based on 589×357 actual image:
+   *   Avatar:       105.4×105.4  @ (46.7,  34.7)   → left 7.93%   top 9.72%   w 17.89%  h 29.52%  (circle)
+   *   Username:     273.4×39.9   @ (165.4, 123.2)  → left 28.08%  top 34.51%  w 46.42%  h 11.18%
+   *   Real Reward:  139.5×44.5   @ (118.7, 221.9)  → left 20.15%  top 62.16%  w 23.69%  h 12.46%
+   *   Real Points:  139.5×44.5   @ (339.4, 221.9)  → left 57.62%  top 62.16%  w 23.69%  h 12.46%
    */
 
   return (
@@ -149,7 +149,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
         onMouseLeave={handleMouseLeave}
         className="relative w-full rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
         style={{
-          aspectRatio: '1750 / 1025',
+          aspectRatio: '589 / 357',
           transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
           transformStyle: 'preserve-3d',
         }}
@@ -201,7 +201,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
           {/* ── Avatar (circle) ── */}
           <div
             className="absolute rounded-full overflow-hidden bg-black"
-            style={{ left: '7.21%', top: '9.90%', width: '16.58%', height: '28.30%' }}
+            style={{ left: '7.93%', top: '9.72%', width: '17.89%', height: '29.52%' }}
           >
             <img
               src={userData.pfp}
@@ -213,7 +213,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
           {/* ── Username ── */}
           <div
             className="absolute flex items-center justify-center"
-            style={{ left: '30.48%', top: '32.83%', width: '39.03%', height: '10.97%' }}
+            style={{ left: '28.08%', top: '34.51%', width: '46.42%', height: '11.18%' }}
           >
             <p className="text-white font-bold font-label truncate w-full text-center" style={{ fontSize: 'clamp(0.65rem, 2.6cqi, 1.3rem)' }}>
               @{userData.username}
@@ -223,7 +223,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
           {/* ── Real Reward (bottom-left stat) ── */}
           <div
             className="absolute flex flex-col justify-center items-center"
-            style={{ left: '17.5%', top: '61.02%', width: '20.65%', height: '14.24%' }}
+            style={{ left: '19.0%', top: '62.16%', width: '23.69%', height: '12.46%' }}
           >
             <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#FFFFFF', textShadow: '0 0 12px rgba(255,255,255,0.4), 0 2px 4px rgba(0,0,0,0.8)' }}>
               ${freePlayDollars.toLocaleString()}
@@ -233,7 +233,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
           {/* ── Real Points (bottom-right stat) ── */}
           <div
             className="absolute flex flex-col justify-center items-center"
-            style={{ left: '60.5%', top: '61.02%', width: '20.65%', height: '14.24%' }}
+            style={{ left: '57.62%', top: '62.16%', width: '23.69%', height: '12.46%' }}
           >
             <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#FFFFFF', textShadow: '0 0 12px rgba(255,255,255,0.4), 0 2px 4px rgba(0,0,0,0.8)' }}>
               {realPoints.toLocaleString()}
