@@ -186,7 +186,7 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
             className="absolute flex items-center"
             style={{ left: '35.33%', top: '36.92%', width: '41.12%', height: '11.70%' }}
           >
-            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(1rem, 4.5cqi, 2.2rem)' }}>
+            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(0.85rem, 3.5cqi, 1.8rem)' }}>
               @{userData.username}
             </p>
           </div>
