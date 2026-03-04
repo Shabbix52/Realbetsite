@@ -215,7 +215,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             className="absolute flex items-center"
             style={{ left: '35.33%', top: '36.92%', width: '41.12%', height: '11.70%' }}
           >
-            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(0.85rem, 3.5cqi, 1.8rem)' }}>
+            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(0.65rem, 2.6cqi, 1.3rem)' }}>
               @{userData.username}
             </p>
           </div>
@@ -225,7 +225,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             className="absolute flex flex-col justify-center"
             style={{ left: '11.16%', top: '66.77%', width: '28.48%', height: '11.70%' }}
           >
-            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.4rem, 6cqi, 3.2rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
+            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
               ${freePlayDollars.toLocaleString()}
             </p>
           </div>
@@ -235,7 +235,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             className="absolute flex flex-col justify-center"
             style={{ left: '55%', top: '66.77%', width: '28.48%', height: '11.70%' }}
           >
-            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.4rem, 6cqi, 3.2rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
+            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
               {realPoints.toLocaleString()}
             </p>
           </div>
@@ -252,6 +252,16 @@ const LockIcon = ({ className }: { className?: string }) => (
     <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
+);
+
+/* ── Rainbow Border Box (animated gradient border) ── */
+const RainbowBox = ({ children }: { children: React.ReactNode }) => (
+  <>
+    <style>{`@keyframes borderFlash{0%{background-position:0% 50%}100%{background-position:300% 50%}}`}</style>
+    <div className="relative p-[2px] rounded-2xl" style={{ background: 'linear-gradient(90deg,#ff3c3c,#ffd700,#00ff88,#1d9bf0,#ff3cff,#ff3c3c)', backgroundSize: '300% 100%', animation: 'borderFlash 3s linear infinite' }}>
+      <div className="rounded-[10px] overflow-hidden bg-[#111118]">{children}</div>
+    </div>
+  </>
 );
 
 /* ═══════════════════════════════════════════ */
@@ -288,9 +298,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const [referralCode, setReferralCode] = useState<string>('');
   const [referralCount, setReferralCount] = useState(0);
   const [referralBonusPoints, setReferralBonusPoints] = useState(0);
-  const [referralMaxBonus, setReferralMaxBonus] = useState(25000);
-  const [referralBonusPerRef, setReferralBonusPerRef] = useState(250);
-  const [referralReferredBonus, setReferralReferredBonus] = useState(150);
+  const [referralBonusPerRef, setReferralBonusPerRef] = useState(5);
+  const [referralReferredBonus, setReferralReferredBonus] = useState(0);
   const [referrals, setReferrals] = useState<{ username: string; bonus: number; status: string; totalPoints: number }[]>([]);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
@@ -337,9 +346,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         if (data.referralCode) setReferralCode(data.referralCode);
         setReferralCount(data.referralCount || 0);
         setReferralBonusPoints(data.referralBonusPoints || 0);
-        setReferralMaxBonus(data.maxBonus || 25000);
-        setReferralBonusPerRef(data.bonusPerReferral || 250);
-        setReferralReferredBonus(data.referredBonus || 150);
+        setReferralBonusPerRef(data.bonusPerReferral ?? 5);
+        setReferralReferredBonus(data.referredBonus ?? 0);
         setReferrals(data.referrals || []);
         setReferredBy(data.referredBy || null);
 
@@ -684,8 +692,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               transition={{ duration: 0.5, delay: 0.4 }}
               style={{ transformOrigin: 'left' }}
             />
-            <span className="font-mono text-[10px] sm:text-xs tracking-[0.3em] text-rb-muted/60 uppercase whitespace-nowrap">
-              RealBet · Season 1
+            <span className="font-mono text-[10px] sm:text-xs tracking-[0.3em] text-rb-muted uppercase whitespace-nowrap">
+              Season 1{' '}
+              <span className="text-brand-red">Allocation</span>
             </span>
             <motion.span
               className="inline-block w-8 h-px bg-brand-red/60"
@@ -697,7 +706,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
           </motion.div>
 
           <h2
-            className="font-display text-3xl sm:text-5xl md:text-7xl font-bold tracking-wider uppercase mb-2 sm:mb-3"
+            className="font-headline text-3xl sm:text-5xl md:text-7xl font-bold tracking-wider uppercase mb-2 sm:mb-3 text-[#F2F2F2]"
             style={{ textShadow: '0 0 60px hsl(355 83% 41% / 0.3), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
           >
             Season 1{' '}
@@ -718,22 +727,22 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         </motion.div>
 
         {/* ── Two-column layout ── */}
-        <div className="flex flex-col lg:flex-row gap-5 sm:gap-8 items-start">
-          {/* ═══ Left Column: VIP Card + Share + Referral ═══ */}
-          <motion.div variants={itemVariants} className="flex-[2] w-full space-y-3 sm:space-y-4">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          {/* ═══ Left Column: VIP Card + Share button ═══ */}
+          <motion.div variants={itemVariants} className="flex-1 w-full space-y-3">
             <VIPCard ref={vipCardRef} userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
 
-            {/* Share on X button */}
+            {/* Share on X to Activate */}
             <button
               onClick={handleShare}
-              disabled={shared || shareLoading}
-              style={{ touchAction: 'manipulation' }}
-              className={`w-full flex items-center justify-center gap-2 sm:gap-2.5 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider transition-all duration-300 active:scale-[0.98] ${
+              disabled={shareLoading || (shared && claimStatus !== 'claimed')}
+              style={{ touchAction: 'manipulation', boxShadow: shared ? undefined : '0 4px 20px rgba(29,155,240,0.3)' }}
+              className={`w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold text-sm tracking-widest transition-all active:scale-[0.98] ${
                 shared
                   ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                   : shareLoading
-                    ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 border border-[#1DA1F2]/10 cursor-wait'
-                    : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20'
+                    ? 'bg-[#1DA1F2]/70 text-white cursor-wait'
+                    : 'bg-[#1DA1F2] hover:bg-[#1a8cd8] text-white'
               }`}
             >
               {shareLoading ? (
@@ -744,42 +753,37 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                   </svg>
                   CAPTURING CARD...
                 </>
+              ) : shared ? (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  SHARED ON X ✓
+                </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                  </svg>
-                  {shared ? 'SHARED ✓' : 'SHARE ON X'}
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  SHARE ON X TO ACTIVATE
                 </>
               )}
             </button>
+            {!shared && (
+              <p className="text-center text-rb-muted/35 text-xs font-mono tracking-wider">
+                Share your VIP card to unlock Season 1 rewards
+              </p>
+            )}
           </motion.div>
 
-          {/* ═══ Right Column: Referral + Season 1 Allocation ═══ */}
-          <motion.div variants={itemVariants} className="flex-1 w-full lg:max-w-md lg:mx-0 space-y-4 sm:space-y-5">
+          {/* ═══ Right Column: Referral + Allocation ═══ */}
+          <motion.div variants={itemVariants} className="flex-1 min-w-0 w-full space-y-4">
             {/* ── REFERRAL SYSTEM ── */}
-            <div className="glass-panel rounded-2xl p-4 sm:p-6 space-y-3 sm:space-y-4">
+            <RainbowBox>
+            <div className="p-5 space-y-4">
               {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white/90">Refer Friends</p>
-                    <p className="text-[10px] text-white/50 font-label">Earn {referralBonusPerRef} power pts per referral</p>
-                  </div>
-                </div>
-                {referralCount > 0 && (
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 font-label tracking-wider font-bold">
-                    {referralCount} REFERRED
-                  </span>
-                )}
+              <div>
+                <p className="font-display font-bold text-xl text-rb-muted tracking-wider uppercase">Refer Friends</p>
+                <p className="text-sm text-rb-muted/50 font-mono mt-1">
+                  Earn <span className="text-brand-gold font-semibold">{referralBonusPerRef} Power Score</span> per referral
+                  {referralCount > 0 && <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-label tracking-wider">{referralCount} REFERRED</span>}
+                </p>
               </div>
 
               {/* Referral stats bar */}
@@ -787,16 +791,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-label tracking-wider text-white/40">
                     <span>BONUS EARNED</span>
-                    <span>{referralBonusPoints.toLocaleString()} / {referralMaxBonus.toLocaleString()} power pts</span>
-                  </div>
-                  <div className="h-1.5 bg-rb-border/30 rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: 'linear-gradient(90deg, #a855f7, #6366f1)' }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min((referralBonusPoints / referralMaxBonus) * 100, 100)}%` }}
-                      transition={{ duration: 0.8, delay: 0.2 }}
-                    />
+                    <span>{referralBonusPoints.toLocaleString()} power pts</span>
                   </div>
                 </div>
               )}
@@ -901,190 +896,197 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                 </div>
               )}
             </div>
+            </RainbowBox>
 
-            {/* ── Season 1 Allocation ── */}
-            <div
-              className="glass-panel rounded-2xl p-5 sm:p-8 space-y-5 sm:space-y-6"
-              style={{ boxShadow: '0 0 40px rgba(191, 18, 32, 0.05), inset 0 0 40px rgba(191, 18, 32, 0.02)' }}
-            >
-              {/* Section heading */}
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-px bg-brand-red/50" />
-                <p className="font-label text-[10px] tracking-[0.3em] text-white/50 uppercase">
-                  Season 1 Allocation
-                </p>
-              </div>
-
-              {/* Power Score */}
-              <div>
-                <motion.p
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
-                  className="text-4xl sm:text-5xl font-bold font-label text-white"
-                  style={{ textShadow: '0 0 40px rgba(255,255,255,0.08)' }}
+            {/* ── Allocation: Pre-share or Post-share ── */}
+            <AnimatePresence mode="wait">
+              {!shared && claimStatus !== 'claimed' ? (
+                /* PRE-SHARE STATE */
+                <motion.div
+                  key="pre-share"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.35 }}
+                  className="glass-panel rounded-2xl p-6 space-y-4"
                 >
-                  {displayPoints.toLocaleString()}
-                </motion.p>
-                <p className="text-white/50 text-sm font-label tracking-wider mt-1">Power Score</p>
-              </div>
-
-              <RedDivider />
-
-              {/* Split explanation */}
-              <div className="space-y-2">
-                <p className="text-white/60 text-sm">Your Power Score is split into:</p>
-                <div className="space-y-1.5 pl-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400 text-xs">•</span>
-                    <span className="text-white/80 text-sm font-medium">60% Play Credit</span>
+                  <p className="text-sm text-rb-muted/60 font-mono leading-relaxed text-center">
+                    Your allocation is ready. Share your <span className="text-brand-red font-semibold">VIP card</span> on X to activate your <span className="text-brand-red font-semibold">Season 1</span> rewards.
+                  </p>
+                  <button
+                    onClick={handleShare}
+                    disabled={shareLoading}
+                    style={{ touchAction: 'manipulation', boxShadow: '0 4px 20px rgba(29,155,240,0.3)' }}
+                    className="w-full py-4 rounded-xl bg-[#1DA1F2] hover:bg-[#1a8cd8] text-white font-bold text-sm font-label tracking-wider transition-all flex items-center justify-center gap-2.5 disabled:opacity-60"
+                  >
+                    {shareLoading ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" className="opacity-25" /><path d="M4 12a8 8 0 018-8" className="opacity-75" />
+                        </svg>
+                        CAPTURING CARD...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                        SHARE ON X
+                      </>
+                    )}
+                  </button>
+                  <div className="w-full py-4 rounded-xl border border-brand-red/10 bg-brand-red/[0.03] text-rb-muted/30 text-sm font-bold font-display tracking-[0.15em] flex items-center justify-center gap-2 cursor-not-allowed select-none">
+                    <LockIcon className="w-4 h-4" />
+                    CLAIM REWARDS
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-brand-gold text-xs">•</span>
-                    <span className="text-white/80 text-sm font-medium">40% Season 1 REAL Points</span>
+                </motion.div>
+              ) : (
+                /* POST-SHARE STATE */
+                <motion.div
+                  key="post-share"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.35 }}
+                  className="glass-panel rounded-2xl p-5 sm:p-6 space-y-5 border-brand-red/10"
+                  style={{ boxShadow: '0 0 40px rgba(191, 18, 32, 0.08), inset 0 0 40px rgba(191, 18, 32, 0.03)' }}
+                >
+                  {/* Header */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="inline-block w-6 h-px bg-brand-red/60" />
+                      <p className="font-mono text-[10px] tracking-[0.3em] text-rb-muted/50 uppercase">Season 1 Allocation</p>
+                    </div>
+                    <motion.p
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
+                      className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
+                      style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+                    >
+                      {displayPoints.toLocaleString()}
+                    </motion.p>
+                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
                   </div>
-                </div>
-              </div>
 
-              <RedDivider />
-
-              {/* Breakdown */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-px bg-brand-red/50" />
-                  <p className="font-label text-[10px] tracking-[0.2em] text-white/50 uppercase">Breakdown</p>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    
-                    <span className="text-white/80 text-sm">Play Credit</span>
+                  {/* 60/40 split cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold font-display text-brand-red">60%</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Play Credit</p>
+                    </div>
+                    <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold font-display text-brand-red">40%</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Season 1 REAL Points</p>
+                    </div>
                   </div>
-                  <span className="text-green-400 text-lg font-bold font-label">
-                    ${split.freePlay.dollars.toLocaleString()}
-                  </span>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                
-                    <span className="text-white/80 text-sm">Season 1 REAL Points</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
                   </div>
-                  <span className="text-brand-gold text-lg font-bold font-label">
-                    {split.realPoints.toLocaleString()}
-                  </span>
-                </div>
-              </div>
 
-              <RedDivider />
+                  {/* Breakdown */}
+                  <div>
+                    <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase mb-3">Breakdown</p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
+                          <span className="text-sm text-rb-muted/70 font-mono">Play Credit</span>
+                        </div>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">${split.freePlay.dollars.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
+                          <span className="text-sm text-rb-muted/70 font-mono">Season 1 REAL Points</span>
+                        </div>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Claim button */}
-              <div className="relative space-y-2">
-                {claimStatus === 'claimed' ? (
-                  /* ── Already claimed ── */
-                  <div className="w-full py-4 rounded-lg bg-green-500/15 border border-green-500/30 text-center">
-                    <p className="text-green-400 text-sm font-bold font-label tracking-wider">
-                      ✓ REWARD CLAIMED
-                    </p>
-                    {claimedAmount !== null && (
-                      <p className="text-green-400/60 text-xs font-label mt-1">
-                        ${claimedAmount.toLocaleString()} $REAL credited to your casino account
-                      </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                  </div>
+
+                  {/* Claim button */}
+                  <div className="relative space-y-2">
+                    {claimStatus === 'claimed' ? (
+                      <div className="w-full py-4 rounded-xl bg-green-500/15 border border-green-500/30 text-center">
+                        <p className="text-green-400 text-sm font-bold font-display tracking-[0.15em]">✓ REWARD CLAIMED</p>
+                        {claimedAmount !== null && (
+                          <p className="text-green-400/60 text-xs font-mono mt-1">
+                            {claimedAmount.toLocaleString()} REAL Points credited to your account
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <motion.div
+                          className="absolute -inset-3 rounded-xl pointer-events-none"
+                          animate={{ opacity: [0, 0.4, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, repeatDelay: 5 }}
+                          style={{ background: 'radial-gradient(ellipse at center, rgba(212,168,50,0.15), transparent 70%)', filter: 'blur(12px)' }}
+                        />
+                        <motion.button
+                          onClick={handleClaim}
+                          disabled={claimStatus === 'claiming' || claimStatus === 'linking'}
+                          className={`w-full py-4 rounded-xl font-bold text-sm font-display tracking-[0.15em] transition-all flex items-center justify-center gap-2 relative overflow-hidden ${
+                            (claimStatus === 'claiming' || claimStatus === 'linking') ? 'opacity-70 cursor-wait' : ''
+                          }`}
+                          style={{ background: 'linear-gradient(135deg, #d4a832, #ffd700)', color: '#000', boxShadow: '0 4px 24px rgba(212,168,50,0.3)', touchAction: 'manipulation' }}
+                          whileHover={claimStatus === 'idle' || claimStatus === 'error' ? { scale: 1.02, boxShadow: '0 6px 34px rgba(212,168,50,0.5)' } : {}}
+                          whileTap={claimStatus === 'idle' || claimStatus === 'error' ? { scale: 0.97 } : {}}
+                        >
+                          <AnimatePresence mode="wait">
+                            {claimStatus === 'linking' ? (
+                              <motion.span key="linking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2">
+                                <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block w-4 h-4 border-2 border-black/30 border-t-black rounded-full" />
+                                CONNECTING TO CASINO...
+                              </motion.span>
+                            ) : claimStatus === 'claiming' ? (
+                              <motion.span key="claiming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2">
+                                <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block w-4 h-4 border-2 border-black/30 border-t-black rounded-full" />
+                                CLAIMING REWARD...
+                              </motion.span>
+                            ) : (
+                              <motion.span key="claim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                {accountLinked ? 'CLAIM YOUR SEASON 1 REWARD →' : 'LINK CASINO & CLAIM REWARD →'}
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </motion.button>
+                      </>
+                    )}
+                    {claimError && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-brand-red text-xs font-label text-center"
+                      >
+                        {claimError}
+                      </motion.p>
                     )}
                   </div>
-                ) : !shared ? (
-                  /* ── Locked — must share on X first ── */
-                  <div className="w-full py-4 rounded-lg bg-white/5 border border-white/10 text-center space-y-1">
-                    <p className="text-white/40 text-sm font-bold font-label tracking-wider flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                      </svg>
-                      CLAIM LOCKED
-                    </p>
-                    <p className="text-white/30 text-xs font-label">
-                      Share your score on X to unlock claiming
-                    </p>
-                  </div>
-                ) : (
-                  /* ── Active claim button (unlocked after X share) ── */
-                  <>
-                    <motion.div
-                      className="absolute -inset-3 rounded-lg pointer-events-none"
-                      animate={{ opacity: [0, 0.4, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 5 }}
-                      style={{
-                        background: 'radial-gradient(ellipse at center, hsl(355 83% 41% / 0.2), transparent 70%)',
-                        filter: 'blur(12px)',
-                      }}
-                    />
-                    <motion.button
-                      onClick={handleClaim}
-                      disabled={claimStatus === 'claiming' || claimStatus === 'linking'}
-                      className={`btn-fight pulse-glow w-full rounded-lg py-4 text-sm sm:text-base relative overflow-hidden ${
-                        (claimStatus === 'claiming' || claimStatus === 'linking') ? 'opacity-70 cursor-wait' : ''
-                      }`}
-                      whileHover={claimStatus === 'idle' || claimStatus === 'error' ? { scale: 1.02, boxShadow: '0 4px 50px hsla(355, 83%, 41%, 0.5)' } : {}}
-                      whileTap={claimStatus === 'idle' || claimStatus === 'error' ? { scale: 0.97 } : {}}
-                      style={{ touchAction: 'manipulation' }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 pointer-events-none"
-                        style={{
-                          background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.04) 50%, transparent 55%)',
-                        }}
-                        animate={{ x: ['-100%', '250%'] }}
-                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 6, ease: 'easeInOut' }}
-                      />
-                      <AnimatePresence mode="wait">
-                        {claimStatus === 'linking' ? (
-                          <motion.span key="linking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2">
-                            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
-                            CONNECTING TO CASINO...
-                          </motion.span>
-                        ) : claimStatus === 'claiming' ? (
-                          <motion.span key="claiming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2">
-                            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
-                            CLAIMING $REAL...
-                          </motion.span>
-                        ) : accountLinked ? (
-                          <motion.span key="linked" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            CLAIM ${allocationDollars.toLocaleString()} $REAL →
-                          </motion.span>
-                        ) : (
-                          <motion.span key="connect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            LINK CASINO &amp; CLAIM REWARD →
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </motion.button>
-                  </>
-                )}
 
-                {/* Error message */}
-                {claimError && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-brand-red text-xs font-label text-center"
-                  >
-                    {claimError}
-                  </motion.p>
-                )}
-              </div>
-
-              {/* Tier note */}
-              <p className="text-white/30 text-[10px] font-label text-center">
-                {tier.label} tier • {split.freePlay.wager}x playthrough on Play Credit
-              </p>
-            </div>
+                  <p className="text-rb-muted/30 text-[10px] font-mono text-center tracking-wider">
+                    {tier.label} tier • {split.freePlay.wager}x playthrough on Play Credit
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Leaderboard link */}
             {onLeaderboard && (
               <button
                 onClick={onLeaderboard}
                 style={{ touchAction: 'manipulation' }}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-red/10 hover:bg-brand-red/20 active:scale-[0.98] text-brand-red text-sm font-bold font-label tracking-wider border border-brand-red/15 transition-all mt-4"
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-red/10 hover:bg-brand-red/20 active:scale-[0.98] text-brand-red text-sm font-bold font-display tracking-[0.15em] border border-brand-red/15 transition-all mt-4"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 21h8m-4-4v4M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
@@ -1095,7 +1097,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
             )}
 
             {/* Tagline */}
-            <p className="text-center text-white/25 text-xs font-mono tracking-wider pt-4">
+            <p className="text-center text-rb-muted/25 text-xs font-mono tracking-[0.3em] uppercase pt-4">
               The House has spoken.
             </p>
           </motion.div>
