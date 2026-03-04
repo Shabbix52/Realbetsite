@@ -453,7 +453,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
     }
 
     const text = encodeURIComponent(
-      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Points\n\n@RealBet | The House is open.\n\n${shareLink}\n\n#RealBetSeason1`,
+      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Score\n\n@RealBet | The House is open.\n\n${shareLink}\n\n#RealBetSeason1`,
     );
     // Open tweet window
     const a = document.createElement('a');

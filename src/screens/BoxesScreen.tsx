@@ -651,7 +651,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                         <p className="text-5xl sm:text-6xl font-bold font-label text-white">
                           +{box.points.toLocaleString()}
                         </p>
-                        <p className="text-sm text-white/50 font-label mt-1">power points</p>
+                        <p className="text-sm text-white/50 font-label mt-1">power score</p>
                       </motion.div>
                     )}
                   </motion.div>

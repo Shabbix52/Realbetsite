@@ -52,6 +52,8 @@ app.use(cors({
   },
   credentials: true 
 }));
+// Use a larger limit globally to support share-image uploads (base64 PNG ~1-2MB)
+app.use('/auth/share-image', express.json({ limit: '3mb' }));
 app.use(express.json({ limit: '16kb' }));
 
 // Rate limiting
@@ -892,15 +894,16 @@ async function handleConnectCallback(req, res) {
     }
 
     const totalPoints = row.total_points;
+    const realPoints = Math.floor(totalPoints * 0.4);
 
     if (!BONUS_API_SECRET) {
       console.error('BONUS_API_SECRET not configured');
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=config_error`);
     }
 
-    // Grant points via hub API
-    const hubResult = await grantHubPoints(effectiveTwitterHandle, totalPoints);
-    console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status}`, hubResult.data);
+    // Grant REAL points (40% of power score) via hub API
+    const hubResult = await grantHubPoints(effectiveTwitterHandle, realPoints);
+    console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status} (${realPoints} real pts of ${totalPoints} total)`, hubResult.data);
 
     if (!hubResult.ok) {
       console.error('Hub API error:', hubResult.data);
@@ -910,13 +913,13 @@ async function handleConnectCallback(req, res) {
     // Mark as claimed
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
-      [hubResult.data.bonus_id || null, totalPoints, targetUid]
+      [hubResult.data.bonus_id || null, realPoints, targetUid]
     );
 
     // Bust cache
     await redis.del(`scores:${targetUid}`);
 
-    console.log(`✓ Claimed ${totalPoints} points for @${effectiveTwitterHandle} (${targetUid})`);
+    console.log(`✓ Claimed ${realPoints} real points for @${effectiveTwitterHandle} (${targetUid})`);
     return res.redirect(`${CLIENT_URL}?claim_result=success`);
   } catch (err) {
     console.error('Connect callback error:', err.message);
@@ -948,9 +951,10 @@ app.post('/auth/claim', async (req, res) => {
     if (!BONUS_API_SECRET) return res.status(500).json({ error: 'Server not configured for claims' });
 
     const totalPoints = row.total_points;
+    const realPoints = Math.floor(totalPoints * 0.4);
 
-    const hubResult = await grantHubPoints(row.username, totalPoints);
-    console.log(`Hub claim result for @${row.username}: ${hubResult.status}`, hubResult.data);
+    const hubResult = await grantHubPoints(row.username, realPoints);
+    console.log(`Hub claim result for @${row.username}: ${hubResult.status} (${realPoints} real pts of ${totalPoints} total)`, hubResult.data);
 
     if (!hubResult.ok) {
       console.error('Hub API error on direct claim:', hubResult.data);
@@ -959,12 +963,12 @@ app.post('/auth/claim', async (req, res) => {
 
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
-      [hubResult.data.bonus_id || null, totalPoints, twitterId]
+      [hubResult.data.bonus_id || null, realPoints, twitterId]
     );
     await redis.del(`scores:${twitterId}`);
 
-    console.log(`✓ Direct claim ${totalPoints} points for @${row.username} (${twitterId})`);
-    res.json({ success: true, bonusId: hubResult.data.bonus_id, amount: totalPoints });
+    console.log(`✓ Direct claim ${realPoints} real points for @${row.username} (${twitterId})`);
+    res.json({ success: true, bonusId: hubResult.data.bonus_id, amount: realPoints });
   } catch (err) {
     console.error('Claim error:', err.message);
     res.status(500).json({ error: 'Server error' });

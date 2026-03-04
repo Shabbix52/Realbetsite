@@ -411,7 +411,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                 { label: 'Active Users', value: formatNum(stats.overview.active_users), sub: `${formatNum(stats.overview.total_users)} total` },
                 { label: 'Completed Gold', value: formatNum(stats.overview.completed_gold), sub: `of ${formatNum(stats.overview.active_users)} active` },
                 { label: 'Shared on X', value: formatNum(stats.overview.shared_count), sub: `of ${formatNum(stats.overview.active_users)} active` },
-                { label: 'Max Power Points', value: formatNum(stats.overview.max_points), sub: `avg followers ${formatNum(stats.overview.avg_followers)}` },
+                { label: 'Max Power Score', value: formatNum(stats.overview.max_points), sub: `avg followers ${formatNum(stats.overview.avg_followers)}` },
               ].map((stat) => (
                 <div key={stat.label} className="glass-panel rounded-xl p-4">
                   <p className="font-label text-[10px] tracking-wider text-rb-muted/40 uppercase mb-1">{stat.label}</p>
@@ -512,7 +512,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                           <th className="text-right py-3 px-4">Bronze</th>
                           <th className="text-right py-3 px-4">Silver</th>
                           <th className="text-right py-3 px-4">Gold</th>
-                          <th className="text-right py-3 px-4">Power Points</th>
+                          <th className="text-right py-3 px-4">Power Score</th>
                           <th className="text-right py-3 px-4">REAL Pts</th>
                           <th className="text-right py-3 px-4">Cash $</th>
                           <th className="text-center py-3 px-4">Shared</th>
