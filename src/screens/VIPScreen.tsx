@@ -104,15 +104,15 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
   const handleMouseLeave = useCallback(() => { setTilt({ x: 0, y: 0 }); setIsHovered(false); }, []);
 
   /*
-   * Layout percentages based on 1080×650 design:
-   *   Avatar:       157.4×155.3  @ (203.7, 175.1)  → left 18.86%  top 26.94%  w 14.57%
-   *   Username:     425×77.3     @ (400.3, 252.8)   → left 37.06%  top 38.89%  w 39.35%
-   *   Play Credit:  256.2×65     @ (186, 431.6)     → left 17.22%  top 66.40%  w 23.72%
-   *   Real Points:  256.2×65     @ (506.1, 431.6)   → left 46.86%  top 66.40%  w 23.72%
+   * Layout percentages based on 912×588 actual image:
+   *   Avatar:       167.7×170.8  @ (112.3, 131.6)  → left 12.31%  top 22.38%  w 18.39%  h 29.05%
+   *   Username:     375×68.8     @ (322.2, 217.1)   → left 35.33%  top 36.92%  w 41.12%  h 11.70%
+   *   Play Credit:  259.7×68.8   @ (101.8, 392.6)   → left 11.16%  top 66.77%  w 28.48%  h 11.70%
+   *   Real Points:  259.7×68.8   @ (421.5, 392.6)   → left 46.22%  top 66.77%  w 28.48%  h 11.70%
    */
 
   return (
-    <div className="mx-auto w-full max-w-2xl" style={{ perspective: '1200px' }}>
+    <div className="mx-auto w-full" style={{ perspective: '1200px' }}>
       <div
         ref={cardRef}
         onMouseMove={handleMouseMove}
@@ -120,7 +120,7 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
         onMouseLeave={handleMouseLeave}
         className="relative w-full rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
         style={{
-          aspectRatio: '1080 / 650',
+          aspectRatio: '912 / 588',
           transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
           transformStyle: 'preserve-3d',
         }}
@@ -171,8 +171,8 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
 
           {/* ── Avatar ── */}
           <div
-            className="absolute rounded-full overflow-hidden"
-            style={{ left: '18.86%', top: '26.94%', width: '14.57%', aspectRatio: '1' }}
+            className="absolute rounded-2xl overflow-hidden bg-black"
+            style={{ left: '12.31%', top: '22.38%', width: '18.39%', height: '29.05%' }}
           >
             <img
               src={userData.pfp}
@@ -184,9 +184,9 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
           {/* ── Username ── */}
           <div
             className="absolute flex items-center"
-            style={{ left: '37.06%', top: '38.89%', width: '39.35%', height: '11.89%' }}
+            style={{ left: '35.33%', top: '36.92%', width: '41.12%', height: '11.70%' }}
           >
-            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(0.7rem, 2.8cqi, 1.5rem)' }}>
+            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(1rem, 4.5cqi, 2.2rem)' }}>
               @{userData.username}
             </p>
           </div>
@@ -194,9 +194,9 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
           {/* ── Play Credit (bottom-left stat) ── */}
           <div
             className="absolute flex flex-col justify-center"
-            style={{ left: '17.22%', top: '66.40%', width: '23.72%', height: '10%' }}
+            style={{ left: '11.16%', top: '66.77%', width: '28.48%', height: '11.70%' }}
           >
-            <p className="text-white font-bold font-label leading-tight" style={{ fontSize: 'clamp(0.65rem, 2.5cqi, 1.35rem)' }}>
+            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.4rem, 6cqi, 3.2rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
               ${freePlayDollars.toLocaleString()}
             </p>
           </div>
@@ -204,25 +204,14 @@ export const VIPCard = ({ userData, displayPoints, freePlayDollars, realPoints }
           {/* ── Real Points (bottom-right stat) ── */}
           <div
             className="absolute flex flex-col justify-center"
-            style={{ left: '46.86%', top: '66.40%', width: '23.72%', height: '10%' }}
+            style={{ left: '55%', top: '66.77%', width: '28.48%', height: '11.70%' }}
           >
-            <p className="text-white font-bold font-label leading-tight" style={{ fontSize: 'clamp(0.65rem, 2.5cqi, 1.35rem)' }}>
+            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.4rem, 6cqi, 3.2rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
               {realPoints.toLocaleString()}
             </p>
           </div>
         </div>
       </div>
-
-      {/* Reflection — subtle */}
-      <div
-        className="hidden sm:block w-full h-8 rounded-2xl mt-1 opacity-10 blur-sm pointer-events-none"
-        style={{
-          transform: 'scaleY(-1)',
-          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 100%)',
-          background: 'linear-gradient(135deg, #12131A 0%, #0D0E14 50%, #07070B 100%)',
-        }}
-      />
     </div>
   );
 };
@@ -593,7 +582,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
       </AnimatePresence>
       {/* Logout button — top-right corner */}
       {onLogout && (
-        <div className="w-full max-w-4xl mx-auto flex justify-end pt-4 sm:pt-6">
+        <div className="w-full max-w-6xl mx-auto flex justify-end pt-4 sm:pt-6">
           <button
             onClick={onLogout}
             className="px-3 py-1.5 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 hover:text-white transition-colors"
@@ -607,7 +596,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="w-full max-w-4xl mx-auto py-4 sm:py-8 pb-24 sm:pb-16"
+        className="w-full max-w-5xl mx-auto py-4 sm:py-8 pb-24 sm:pb-16"
       >
         {/* ── Big Allocation Headline ── */}
         <motion.div variants={itemVariants} className="text-center mb-6 sm:mb-10">
@@ -661,7 +650,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
         {/* ── Two-column layout ── */}
         <div className="flex flex-col lg:flex-row gap-5 sm:gap-8 items-start">
           {/* ═══ Left Column: VIP Card + Share + Referral ═══ */}
-          <motion.div variants={itemVariants} className="flex-1 w-full space-y-3 sm:space-y-4">
+          <motion.div variants={itemVariants} className="flex-[2] w-full space-y-3 sm:space-y-4">
             <VIPCard userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
 
             {/* Share on X button */}
@@ -683,7 +672,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
           </motion.div>
 
           {/* ═══ Right Column: Referral + Season 1 Allocation ═══ */}
-          <motion.div variants={itemVariants} className="flex-1 w-full lg:max-w-sm lg:mx-0 space-y-4 sm:space-y-5">
+          <motion.div variants={itemVariants} className="flex-1 w-full lg:max-w-md lg:mx-0 space-y-4 sm:space-y-5">
             {/* ── REFERRAL SYSTEM ── */}
             <div className="glass-panel rounded-2xl p-4 sm:p-6 space-y-3 sm:space-y-4">
               {/* Header */}

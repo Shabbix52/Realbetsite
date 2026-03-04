@@ -767,8 +767,11 @@ app.get('/auth/hub-connect', (req, res) => {
   // Build our callback URL — hub will redirect back here with signed params
   const returnUrl = `${SERVER_URL}/auth/connect/callback?uid=${encodeURIComponent(uid)}`;
 
-  console.log(`Hub connect redirect for uid ${uid} → return_url: ${returnUrl}`);
-  res.redirect(`${HUB_API_BASE}/connect?return_url=${encodeURIComponent(returnUrl)}`);
+  // Use URLSearchParams to let it handle encoding correctly
+  const params = new URLSearchParams({ return_url: returnUrl });
+
+  console.log(`Hub connect redirect for uid ${uid} → ${HUB_API_BASE}/connect?${params}`);
+  res.redirect(`${HUB_API_BASE}/connect?${params}`);
 });
 
 /**
