@@ -755,22 +755,23 @@ app.use('/auth/claim', claimLimiter);
 /**
  * GET /auth/hub-connect
  * Client redirects here → server builds return_url → redirects to hub.realbet.io/connect
- * Per hub docs, the Connect launch only needs: GET /connect?return_url=<url>
- * The hub will append twitter_handle, pfp_url, ts, sig on the way BACK.
+ * Hub requires both return_url AND twitter_handle params.
  */
 app.get('/auth/hub-connect', (req, res) => {
-  const { uid } = req.query;
-  if (!uid) {
-    return res.status(400).send('uid is required');
+  const { uid, twitter_handle } = req.query;
+  if (!uid || !twitter_handle) {
+    return res.status(400).send('uid and twitter_handle are required');
   }
 
   // Build our callback URL — hub will redirect back here with signed params
   const returnUrl = `${SERVER_URL}/auth/connect/callback?uid=${encodeURIComponent(uid)}`;
 
-  // Use URLSearchParams to let it handle encoding correctly
-  const params = new URLSearchParams({ return_url: returnUrl });
+  const params = new URLSearchParams({
+    return_url: returnUrl,
+    twitter_handle: String(twitter_handle),
+  });
 
-  console.log(`Hub connect redirect for uid ${uid} → ${HUB_API_BASE}/connect?${params}`);
+  console.log(`Hub connect redirect for @${twitter_handle} (${uid}) → ${HUB_API_BASE}/connect?${params}`);
   res.redirect(`${HUB_API_BASE}/connect?${params}`);
 });
 
