@@ -133,11 +133,11 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
   const handleMouseLeave = useCallback(() => { setTilt({ x: 0, y: 0 }); setIsHovered(false); }, []);
 
   /*
-   * Layout percentages based on 912×588 actual image:
-   *   Avatar:       167.7×170.8  @ (112.3, 131.6)  → left 12.31%  top 22.38%  w 18.39%  h 29.05%
-   *   Username:     375×68.8     @ (322.2, 217.1)   → left 35.33%  top 36.92%  w 41.12%  h 11.70%
-   *   Play Credit:  259.7×68.8   @ (101.8, 392.6)   → left 11.16%  top 66.77%  w 28.48%  h 11.70%
-   *   Real Points:  259.7×68.8   @ (421.5, 392.6)   → left 46.22%  top 66.77%  w 28.48%  h 11.70%
+   * Layout percentages based on 1750×1025 actual image:
+   *   Avatar:       290.1×290.1  @ (126.2, 101.5)   → left 7.21%   top 9.90%   w 16.58%  h 28.30%  (circle)
+   *   Username:     683.1×112.4  @ (533.4, 336.5)   → left 30.48%  top 32.83%  w 39.03%  h 10.97%
+   *   Real Reward:  361.3×146    @ (344.4, 625.5)   → left 19.68%  top 61.02%  w 20.65%  h 14.24%
+   *   Real Points:  361.3×146    @ (1027.6, 625.5)  → left 58.72%  top 61.02%  w 20.65%  h 14.24%
    */
 
   return (
@@ -149,7 +149,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
         onMouseLeave={handleMouseLeave}
         className="relative w-full rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
         style={{
-          aspectRatio: '912 / 588',
+          aspectRatio: '1750 / 1025',
           transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
           transformStyle: 'preserve-3d',
         }}
@@ -198,10 +198,10 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             }}
           />
 
-          {/* ── Avatar ── */}
+          {/* ── Avatar (circle) ── */}
           <div
-            className="absolute rounded-2xl overflow-hidden bg-black"
-            style={{ left: '12.31%', top: '22.38%', width: '18.39%', height: '29.05%' }}
+            className="absolute rounded-full overflow-hidden bg-black"
+            style={{ left: '7.21%', top: '9.90%', width: '16.58%', height: '28.30%' }}
           >
             <img
               src={userData.pfp}
@@ -212,30 +212,30 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
 
           {/* ── Username ── */}
           <div
-            className="absolute flex items-center"
-            style={{ left: '35.33%', top: '36.92%', width: '41.12%', height: '11.70%' }}
+            className="absolute flex items-center justify-center"
+            style={{ left: '30.48%', top: '32.83%', width: '39.03%', height: '10.97%' }}
           >
-            <p className="text-white font-bold font-label truncate w-full" style={{ fontSize: 'clamp(0.65rem, 2.6cqi, 1.3rem)' }}>
+            <p className="text-white font-bold font-label truncate w-full text-center" style={{ fontSize: 'clamp(0.65rem, 2.6cqi, 1.3rem)' }}>
               @{userData.username}
             </p>
           </div>
 
-          {/* ── Play Credit (bottom-left stat) ── */}
+          {/* ── Real Reward (bottom-left stat) ── */}
           <div
-            className="absolute flex flex-col justify-center"
-            style={{ left: '11.16%', top: '66.77%', width: '28.48%', height: '11.70%' }}
+            className="absolute flex flex-col justify-center items-center"
+            style={{ left: '17.5%', top: '61.02%', width: '20.65%', height: '14.24%' }}
           >
-            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
+            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#FFFFFF', textShadow: '0 0 12px rgba(255,255,255,0.4), 0 2px 4px rgba(0,0,0,0.8)' }}>
               ${freePlayDollars.toLocaleString()}
             </p>
           </div>
 
           {/* ── Real Points (bottom-right stat) ── */}
           <div
-            className="absolute flex flex-col justify-center"
-            style={{ left: '55%', top: '66.77%', width: '28.48%', height: '11.70%' }}
+            className="absolute flex flex-col justify-center items-center"
+            style={{ left: '60.5%', top: '61.02%', width: '20.65%', height: '14.24%' }}
           >
-            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7), 0 2px 4px rgba(0,0,0,0.8)' }}>
+            <p className="font-display font-bold leading-none" style={{ fontSize: 'clamp(1.0rem, 4.5cqi, 2.4rem)', color: '#FFFFFF', textShadow: '0 0 12px rgba(255,255,255,0.4), 0 2px 4px rgba(0,0,0,0.8)' }}>
               {realPoints.toLocaleString()}
             </p>
           </div>

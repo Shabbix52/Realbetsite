@@ -1073,8 +1073,8 @@ app.get('/share/:twitterId', async (req, res) => {
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:image" content="${imageUrl}" />
-  <meta property="og:image:width" content="912" />
-  <meta property="og:image:height" content="588" />
+  <meta property="og:image:width" content="1750" />
+  <meta property="og:image:height" content="1025" />
   <meta property="og:url" content="${CLIENT_URL}/share/${twitterId}" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
