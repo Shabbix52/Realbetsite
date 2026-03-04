@@ -795,16 +795,32 @@ app.get('/auth/hub-connect', (req, res) => {
  * Verifies HMAC sig → marks linked → grants $REAL → redirects to client.
  */
 app.get('/auth/connect/callback', async (req, res) => {
-  const { state, uid: legacyUid, twitter_handle, pfp_url, ts, sig } = req.query;
+  const state = req.query.state || req.query.connect_state;
+  const legacyUid = req.query.uid;
+  const twitterHandleParam = req.query.twitter_handle || req.query.twitterHandle || req.query.username;
+  const pfpUrl = req.query.pfp_url || req.query.pfpUrl || '';
+  const ts = req.query.ts || req.query.timestamp;
+  const sig = req.query.sig || req.query.signature;
 
-  if (!twitter_handle || !ts || !sig) {
+  const storedState = state ? hubConnectStateStore.get(String(state)) : null;
+  const effectiveTwitterHandle = String(twitterHandleParam || storedState?.twitterHandle || '').trim();
+
+  if (!effectiveTwitterHandle || !ts || !sig) {
+    console.warn('Connect callback missing params:', {
+      keys: Object.keys(req.query || {}),
+      hasState: !!state,
+      hasStoredState: !!storedState,
+      hasTwitterHandle: !!effectiveTwitterHandle,
+      hasTs: !!ts,
+      hasSig: !!sig,
+    });
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_params`);
   }
 
   // Verify HMAC signature from hub
   try {
-    if (!verifyHubCallback(String(twitter_handle), String(pfp_url || ''), String(ts), String(sig))) {
-      console.warn(`⚠️  Connect callback: invalid signature for @${twitter_handle}`);
+    if (!verifyHubCallback(effectiveTwitterHandle, String(pfpUrl), String(ts), String(sig))) {
+      console.warn(`⚠️  Connect callback: invalid signature for @${effectiveTwitterHandle}`);
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=invalid_signature`);
     }
   } catch (err) {
@@ -814,15 +830,14 @@ app.get('/auth/connect/callback', async (req, res) => {
 
   let targetUid = null;
   if (state) {
-    const stored = hubConnectStateStore.get(String(state));
-    if (!stored) {
+    if (!storedState) {
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=invalid_state`);
     }
     hubConnectStateStore.delete(String(state));
-    if (stored.twitterHandle !== String(twitter_handle).toLowerCase()) {
+    if (storedState.twitterHandle !== effectiveTwitterHandle.toLowerCase()) {
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=state_mismatch`);
     }
-    targetUid = stored.uid;
+    targetUid = storedState.uid;
   } else if (legacyUid) {
     // Backward compatibility for older in-flight links that still include uid in return_url.
     targetUid = String(legacyUid);
@@ -843,7 +858,7 @@ app.get('/auth/connect/callback', async (req, res) => {
     }
 
     const row = scoreResult.rows[0];
-    if (row.username && row.username.toLowerCase() !== String(twitter_handle).toLowerCase()) {
+    if (row.username && row.username.toLowerCase() !== effectiveTwitterHandle.toLowerCase()) {
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_mismatch`);
     }
     if (row.claimed_at) {
@@ -859,8 +874,8 @@ app.get('/auth/connect/callback', async (req, res) => {
     }
 
     // Grant $REAL via hub API
-    const hubResult = await grantRealBonus(String(twitter_handle), allocationDollars);
-    console.log(`Hub grant result for @${twitter_handle}: ${hubResult.status}`, hubResult.data);
+    const hubResult = await grantRealBonus(effectiveTwitterHandle, allocationDollars);
+    console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status}`, hubResult.data);
 
     if (!hubResult.ok) {
       console.error('Hub API error:', hubResult.data);
@@ -876,7 +891,7 @@ app.get('/auth/connect/callback', async (req, res) => {
     // Bust cache
     await redis.del(`scores:${targetUid}`);
 
-    console.log(`✓ Claimed $${allocationDollars} $REAL for @${twitter_handle} (${targetUid})`);
+    console.log(`✓ Claimed $${allocationDollars} $REAL for @${effectiveTwitterHandle} (${targetUid})`);
     return res.redirect(`${CLIENT_URL}?claim_result=success`);
   } catch (err) {
     console.error('Connect callback error:', err.message);
