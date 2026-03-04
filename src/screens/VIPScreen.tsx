@@ -230,9 +230,10 @@ interface VIPScreenProps {
   userData: UserData;
   onLeaderboard?: () => void;
   onLogout?: () => void;
+  onUpdatePoints?: (totalPoints: number, followersCount: number) => void;
 }
 
-const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
+const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScreenProps) => {
   // Persist share state per twitterId so it survives refreshes/re-logins
   const sharedKey = userData.twitterId ? `realbet_shared_${userData.twitterId}` : null;
   const [shared, setShared] = useState(() => {
@@ -271,23 +272,28 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
   const [referredBy, setReferredBy] = useState<string | null>(null);
   const [showReferralDetails, setShowReferralDetails] = useState(false);
 
-  // Load referral data + restore share state from DB
+  // Load referral data + restore share state from DB + sync authoritative totalPoints
   useEffect(() => {
     if (!userData.twitterId) return;
-    // Restore hasShared from server (cross-device)
+    // Fetch scores — this is the single source of truth for totalPoints
     fetch(getApiUrl(`/auth/scores/${userData.twitterId}`))
       .then(r => r.json())
       .then(data => {
-        if (data?.hasShared && !shared) {
+        if (!data) return;
+        // Sync authoritative totalPoints from DB (includes referral bonuses, task bonuses, etc.)
+        if (typeof data.totalPoints === 'number' && data.totalPoints > 0 && data.totalPoints !== userData.totalPoints) {
+          onUpdatePoints?.(data.totalPoints, data.followersCount ?? userData.followersCount);
+        }
+        if (data.hasShared && !shared) {
           setShared(true);
           if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch { /* ignore */ } }
         }
         // Restore claim status
-        if (data?.claimedAt) {
+        if (data.claimedAt) {
           setClaimStatus('claimed');
           setClaimedAmount(data.claimAmount || null);
           setAccountLinked(true);
-        } else if (data?.accountLinked) {
+        } else if (data.accountLinked) {
           setAccountLinked(true);
         }
       })

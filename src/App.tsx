@@ -179,6 +179,14 @@ function App() {
     setScreen('vip');
   }, []);
 
+  const handleUpdatePoints = useCallback((totalPoints: number, followersCount: number) => {
+    setUserData(prev => ({
+      ...prev,
+      totalPoints,
+      followersCount,
+    }));
+  }, []);
+
   const handleLogout = useCallback(() => {
     try {
       // Get twitterId before clearing so we can remove per-user keys
@@ -217,7 +225,7 @@ function App() {
           <BoxesScreen key="boxes" userData={userData} onComplete={handleBoxesDone} onUserProfile={handleUserProfileUpdate} />
         )}
         {screen === 'vip' && (
-          <VIPScreen key="vip" userData={userData} onLeaderboard={() => setScreen('leaderboard')} onLogout={handleLogout} />
+          <VIPScreen key="vip" userData={userData} onLeaderboard={() => setScreen('leaderboard')} onLogout={handleLogout} onUpdatePoints={handleUpdatePoints} />
         )}
         {screen === 'leaderboard' && (
           <LeaderboardScreen key="leaderboard" onBack={() => setScreen('vip')} currentUsername={userData.username} />
