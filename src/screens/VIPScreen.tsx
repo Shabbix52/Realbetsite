@@ -481,11 +481,14 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout }: VIPScreenProps) => {
       return;
     }
 
-    // Not linked yet: redirect to hub connect flow
+    // Not linked yet: redirect through server so it can sign the hub request
     setClaimStatus('linking');
     const serverUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    const returnUrl = encodeURIComponent(`${serverUrl}/auth/connect/callback?uid=${userData.twitterId}`);
-    window.location.href = `${HUB_CONNECT_URL}?return_url=${returnUrl}`;
+    const params = new URLSearchParams({
+      uid: userData.twitterId,
+      twitter_handle: userData.username,
+    });
+    window.location.href = `${serverUrl}/auth/hub-connect?${params}`;
   };
 
   // On mount, check if we returned from hub connect

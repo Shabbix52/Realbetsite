@@ -753,6 +753,40 @@ app.use('/auth/connect', claimLimiter);
 app.use('/auth/claim', claimLimiter);
 
 /**
+ * GET /auth/hub-connect
+ * Client redirects here → server signs the request → server redirects to hub.realbet.io/connect
+ * This keeps BONUS_API_SECRET server-side only.
+ */
+app.get('/auth/hub-connect', (req, res) => {
+  const { uid, twitter_handle } = req.query;
+  if (!uid || !twitter_handle) {
+    return res.status(400).send('uid and twitter_handle are required');
+  }
+
+  if (!BONUS_API_SECRET) {
+    console.error('BONUS_API_SECRET not configured — cannot build signed hub redirect');
+    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=config_error`);
+  }
+
+  const returnUrl = `${SERVER_URL}/auth/connect/callback?uid=${encodeURIComponent(uid)}`;
+  const ts = Math.floor(Date.now() / 1000).toString();
+  // Sign: ts.return_url=X&twitter_handle=Y&uid=Z
+  const signMessage = `${ts}.return_url=${returnUrl}&twitter_handle=${twitter_handle}&uid=${uid}`;
+  const sig = crypto.createHmac('sha256', BONUS_API_SECRET).update(signMessage).digest('hex');
+
+  const params = new URLSearchParams({
+    return_url: returnUrl,
+    uid: String(uid),
+    twitter_handle: String(twitter_handle),
+    ts,
+    sig,
+  });
+
+  console.log(`Hub connect redirect for @${twitter_handle} (${uid})`);
+  res.redirect(`${HUB_API_BASE}/connect?${params}`);
+});
+
+/**
  * GET /auth/connect/callback
  * Hub redirects here after the user links their casino account.
  * Verifies HMAC sig → marks linked → grants $REAL → redirects to client.
