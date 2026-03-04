@@ -158,6 +158,11 @@ async function initDB() {
     // Track share post URL for VIP screen share confirmation
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS share_post_url TEXT`);
     await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS shared_at TIMESTAMPTZ`);
+    // Claim flow columns (hub connect + $REAL grant)
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS account_linked BOOLEAN DEFAULT FALSE`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS hub_bonus_id VARCHAR(100)`);
+    await client.query(`ALTER TABLE scores ADD COLUMN IF NOT EXISTS claim_amount NUMERIC`);
 
     console.log('✓ PostgreSQL connected & tables ready');
   } finally {
@@ -194,6 +199,8 @@ async function initRedis() {
 
 // ── In-memory store for OAuth state / PKCE verifiers ──
 const oauthStore = new Map();
+// ── In-memory store for Hub connect state (bind callback to initiating user) ──
+const hubConnectStateStore = new Map();
 
 // ─────────────────────────────────────────────
 //  HUB API — Connect + Bonus helpers
@@ -763,8 +770,15 @@ app.get('/auth/hub-connect', (req, res) => {
     return res.status(400).send('uid and twitter_handle are required');
   }
 
+  const state = crypto.randomBytes(24).toString('hex');
+  hubConnectStateStore.set(state, {
+    uid: String(uid),
+    twitterHandle: String(twitter_handle).toLowerCase(),
+    created: Date.now(),
+  });
+
   // Build our callback URL — hub will redirect back here with signed params
-  const returnUrl = `${SERVER_URL}/auth/connect/callback?uid=${encodeURIComponent(uid)}`;
+  const returnUrl = `${SERVER_URL}/auth/connect/callback?state=${encodeURIComponent(state)}`;
 
   const params = new URLSearchParams({
     return_url: returnUrl,
@@ -781,9 +795,9 @@ app.get('/auth/hub-connect', (req, res) => {
  * Verifies HMAC sig → marks linked → grants $REAL → redirects to client.
  */
 app.get('/auth/connect/callback', async (req, res) => {
-  const { uid, twitter_handle, pfp_url, ts, sig } = req.query;
+  const { state, uid: legacyUid, twitter_handle, pfp_url, ts, sig } = req.query;
 
-  if (!uid || !twitter_handle || !ts || !sig) {
+  if (!twitter_handle || !ts || !sig) {
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_params`);
   }
 
@@ -798,17 +812,40 @@ app.get('/auth/connect/callback', async (req, res) => {
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=sig_error`);
   }
 
+  let targetUid = null;
+  if (state) {
+    const stored = hubConnectStateStore.get(String(state));
+    if (!stored) {
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=invalid_state`);
+    }
+    hubConnectStateStore.delete(String(state));
+    if (stored.twitterHandle !== String(twitter_handle).toLowerCase()) {
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=state_mismatch`);
+    }
+    targetUid = stored.uid;
+  } else if (legacyUid) {
+    // Backward compatibility for older in-flight links that still include uid in return_url.
+    targetUid = String(legacyUid);
+  }
+
+  if (!targetUid) {
+    return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_state`);
+  }
+
   try {
     // Mark user as linked
-    await pool.query('UPDATE scores SET account_linked = true WHERE twitter_id = $1', [uid]);
+    await pool.query('UPDATE scores SET account_linked = true WHERE twitter_id = $1', [targetUid]);
 
     // Get user's scores to calculate allocation
-    const scoreResult = await pool.query('SELECT * FROM scores WHERE twitter_id = $1', [uid]);
+    const scoreResult = await pool.query('SELECT * FROM scores WHERE twitter_id = $1', [targetUid]);
     if (scoreResult.rows.length === 0) {
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_not_found`);
     }
 
     const row = scoreResult.rows[0];
+    if (row.username && row.username.toLowerCase() !== String(twitter_handle).toLowerCase()) {
+      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_mismatch`);
+    }
     if (row.claimed_at) {
       return res.redirect(`${CLIENT_URL}?claim_result=already_claimed`);
     }
@@ -833,13 +870,13 @@ app.get('/auth/connect/callback', async (req, res) => {
     // Mark as claimed
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2 WHERE twitter_id = $3',
-      [hubResult.data.bonus_id || null, allocationDollars, uid]
+      [hubResult.data.bonus_id || null, allocationDollars, targetUid]
     );
 
     // Bust cache
-    await redis.del(`scores:${uid}`);
+    await redis.del(`scores:${targetUid}`);
 
-    console.log(`✓ Claimed $${allocationDollars} $REAL for @${twitter_handle} (${uid})`);
+    console.log(`✓ Claimed $${allocationDollars} $REAL for @${twitter_handle} (${targetUid})`);
     return res.redirect(`${CLIENT_URL}?claim_result=success`);
   } catch (err) {
     console.error('Connect callback error:', err.message);
@@ -1616,6 +1653,9 @@ setInterval(() => {
   const cutoff = Date.now() - 10 * 60 * 1000;
   for (const [key, val] of oauthStore) {
     if (val.created < cutoff) oauthStore.delete(key);
+  }
+  for (const [key, val] of hubConnectStateStore) {
+    if (val.created < cutoff) hubConnectStateStore.delete(key);
   }
 }, 5 * 60 * 1000);
 
