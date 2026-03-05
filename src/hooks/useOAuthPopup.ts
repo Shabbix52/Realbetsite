@@ -58,6 +58,7 @@ function isMobile(): boolean {
 export function useOAuthPopup() {
   const callbackRef = useRef<OAuthCallback | null>(null);
   const firedRef = useRef(false);
+  const firedSuccessRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fireCallback = useCallback((result: OAuthResult) => {
@@ -66,6 +67,7 @@ export function useOAuthPopup() {
       return;
     }
     firedRef.current = true;
+    if (result.success) firedSuccessRef.current = true;
     clearOAuthResult();
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     console.log(`[OAuth] ✅ Firing callback: provider=${result.provider} success=${result.success}`, result.user ? `user=${result.user.username}` : result.error || '');
@@ -90,9 +92,13 @@ export function useOAuthPopup() {
       // Filter out noise (browser extensions, React devtools, etc.)
       if (!data || typeof data !== 'object' || !data.provider || typeof data.success !== 'boolean') return;
       console.log('[OAuth] postMessage received:', data.provider, data.success, data.user?.username || data.error || '');
-      // OVERRIDE firedRef — postMessage is authoritative. If we already
-      // fired a "window closed" error, undo it by accepting the real result.
+      // OVERRIDE firedRef — postMessage is authoritative, but only if previous fire was a failure.
+      // If we already fired a successful result, ignore any late duplicates.
       if (firedRef.current) {
+        if (firedSuccessRef.current) {
+          console.log('[OAuth] postMessage ignored — already fired with success');
+          return;
+        }
         console.log('[OAuth] Late postMessage arrived — overriding previous failure');
         firedRef.current = false;
       }
@@ -105,6 +111,7 @@ export function useOAuthPopup() {
   const openOAuth = useCallback((provider: 'twitter' | 'discord', onResult: OAuthCallback) => {
     callbackRef.current = onResult;
     firedRef.current = false;
+    firedSuccessRef.current = false;
     clearOAuthResult();
 
     // ── Mobile: full-page redirect (popups are blocked on iOS/Android) ──

@@ -106,7 +106,7 @@ interface AdminScreenProps {
 
 const AdminScreen = ({ onBack }: AdminScreenProps) => {
   const [adminKey, setAdminKey] = useState(() => {
-    try { return localStorage.getItem('realbet_admin_key') || ''; }
+    try { return sessionStorage.getItem('realbet_admin_key') || ''; }
     catch { return ''; }
   });
   const [authenticated, setAuthenticated] = useState(false);
@@ -133,7 +133,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
       if (res.ok) {
         setAdminKey(key);
         setAuthenticated(true);
-        localStorage.setItem('realbet_admin_key', key);
+        sessionStorage.setItem('realbet_admin_key', key);
         const data = await res.json();
         setStats(data);
         return true;
@@ -343,7 +343,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
             >
               RESET DB
             </button>
-            <button onClick={() => { setAuthenticated(false); setAdminKey(''); localStorage.removeItem('realbet_admin_key'); }} className="px-3 sm:px-4 py-2 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 transition-colors">
+            <button onClick={() => { setAuthenticated(false); setAdminKey(''); sessionStorage.removeItem('realbet_admin_key'); }} className="px-3 sm:px-4 py-2 rounded-lg bg-rb-border/30 text-rb-muted/50 text-xs font-bold font-label tracking-wider hover:bg-rb-border/50 transition-colors">
               LOGOUT
             </button>
           </div>

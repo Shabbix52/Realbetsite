@@ -66,6 +66,7 @@ const rollLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true
 app.use('/auth/leaderboard', generalLimiter);
 app.use('/auth/scores/roll', rollLimiter);
 app.use('/auth/scores', generalLimiter);
+app.post('/auth/scores', generalLimiter);
 app.use('/auth/twitter', twitterAuthLimiter);
 app.use('/auth/discord', discordAuthLimiter);
 app.use('/admin', adminLimiter);
@@ -74,10 +75,20 @@ app.use('/admin', adminLimiter);
 //  DATABASE SETUP
 // ─────────────────────────────────────────────
 
+// Fail fast if critical secrets are missing — never run with defaults
+const REQUIRED_ENV = ['DATABASE_URL', 'REDIS_URL', 'ADMIN_KEY', 'BONUS_API_SECRET',
+  'TWITTER_CLIENT_ID', 'TWITTER_CLIENT_SECRET'];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`FATAL: Missing required env var ${key}. Set it before starting.`);
+    process.exit(1);
+  }
+}
+
 // PostgreSQL
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: true },
 });
 
 async function initDB() {
@@ -480,8 +491,10 @@ app.get('/auth/discord/callback', async (req, res) => {
   }
 });
 
-// Step 3: Check if user is in the Discord guild
+// Step 3: Check if user is in the Discord guild (requires valid twitterId to prevent bulk enumeration)
 app.get('/auth/discord/check-member/:userId', async (req, res) => {
+  const { twitterId } = req.query;
+  if (!twitterId) return res.status(400).json({ member: false, error: 'twitterId required' });
   const { userId } = req.params;
   const guildId = process.env.DISCORD_GUILD_ID;
   const botToken = process.env.DISCORD_BOT_TOKEN;
@@ -543,7 +556,7 @@ app.post('/auth/discord/link', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // ── Score signing (HMAC) ──
-const SCORE_SECRET = process.env.SCORE_SECRET || (process.env.ADMIN_KEY + '-score-hmac');
+const SCORE_SECRET = process.env.SCORE_SECRET || process.env.ADMIN_KEY;
 const TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 // Gold point ranges per follower tier (mirrors tierConfig.ts)
@@ -658,7 +671,8 @@ app.get('/auth/scores/roll', async (req, res) => {
 });
 
 app.post('/auth/scores', async (req, res) => {
-  const { twitterId, username, followersCount, boxes, walletMultiplier, totalPoints } = req.body;
+  const { twitterId, username, boxes, walletMultiplier, totalPoints } = req.body;
+  const followersCount = Math.max(0, Math.min(10_000_000, Math.floor(Number(req.body.followersCount) || 0)));
   if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
 
   // Server-side score validation
@@ -851,6 +865,7 @@ async function handleConnectCallback(req, res) {
   });
 
   if (!effectiveTwitterHandle || !ts || !sig) {
+    if (state) hubConnectStateStore.delete(String(state));
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=missing_params`);
   }
 
@@ -858,10 +873,12 @@ async function handleConnectCallback(req, res) {
   try {
     if (!verifyHubCallback(effectiveTwitterHandle, String(pfpUrl), String(ts), String(sig))) {
       console.warn(`⚠️  Connect callback: invalid signature for @${effectiveTwitterHandle}`);
+      if (state) hubConnectStateStore.delete(String(state));
       return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=invalid_signature`);
     }
   } catch (err) {
     console.error('Signature verification error:', err.message);
+    if (state) hubConnectStateStore.delete(String(state));
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=sig_error`);
   }
 
@@ -893,6 +910,7 @@ async function handleConnectCallback(req, res) {
   }
 
   if (!targetUid) {
+    if (state) hubConnectStateStore.delete(String(state));
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_not_found`);
   }
 
@@ -1534,7 +1552,7 @@ app.get('/auth/referral/validate/:code', async (req, res) => {
 //  ADMIN — Protected dashboard endpoints
 // ─────────────────────────────────────────────
 
-const ADMIN_KEY = process.env.ADMIN_KEY || 'realbet-admin-2026';
+const ADMIN_KEY = process.env.ADMIN_KEY; // guaranteed set by startup guard above
 
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
@@ -1654,10 +1672,10 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
 function csvSafe(val) {
   if (val == null) return '';
   const str = String(val);
-  // Prefix formula-triggering characters with a single quote
-  if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
-  // Wrap in quotes if contains comma, quote, or newline
-  if (/[,"\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  // Prefix ALL formula-triggering characters (including pipe and semicolon used in some locales)
+  if (/^[=+\-@\t\r|;]/.test(str)) return `'${str}`;
+  // Wrap in quotes if contains comma, quote, newline, or tab
+  if (/[,"\n\r\t]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
   return str;
 }
 
@@ -1825,8 +1843,8 @@ function sendResult(res, success, provider, error, user, isMobileRedirect) {
 
 function sendResultPage(res, success, provider, error = null, user = null) {
   const payload = { success, provider, error, user };
-  // Escape </script> and <!-- sequences to prevent XSS in inline script blocks
-  const json = JSON.stringify(payload).replace(/<\//g, '<\/').replace(/<!--/g, '<\!--');
+  // Safely embed JSON via base64 in a data attribute — never injected into script text
+  const b64 = Buffer.from(JSON.stringify(payload)).toString('base64');
   console.log(`[OAuth Result] ${provider} success=${success} user=${user?.username || 'n/a'} error=${error || 'none'}`);
 
   // Serve inline HTML that sends postMessage to opener (cross-origin safe)
@@ -1836,12 +1854,12 @@ function sendResultPage(res, success, provider, error = null, user = null) {
 <html>
 <head><title>Authenticating...</title></head>
 <body style="background:#0D0D0D;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-  <div style="text-align:center">
+  <div id="payload" data-b64="${b64}" style="text-align:center">
     <p id="msg">${success ? 'Connected!' : 'Connection failed'}</p>
     <p style="opacity:0.5;font-size:14px">This window will close automatically...</p>
   </div>
   <script>
-    var data = ${json};
+    var data = JSON.parse(atob(document.getElementById('payload').dataset.b64));
     console.log('[OAuthCallback] Inline page loaded, data:', data);
 
     var sent = false;
@@ -1877,16 +1895,18 @@ function sendResultPage(res, success, provider, error = null, user = null) {
 </html>`);
 }
 
-// ── Cleanup expired states every 5 minutes ──
+// ── Cleanup expired states every 2 minutes (OAuth state TTL is 5 min) ──
 setInterval(() => {
-  const cutoff = Date.now() - 10 * 60 * 1000;
+  const cutoff = Date.now() - 5 * 60 * 1000; // 5-minute TTL for OAuth states
   for (const [key, val] of oauthStore) {
     if (val.created < cutoff) oauthStore.delete(key);
   }
+  // Hub connect states expire after 10 minutes (longer flow)
+  const hubCutoff = Date.now() - 10 * 60 * 1000;
   for (const [key, val] of hubConnectStateStore) {
-    if (val.created < cutoff) hubConnectStateStore.delete(key);
+    if (val.created < hubCutoff) hubConnectStateStore.delete(key);
   }
-}, 5 * 60 * 1000);
+}, 2 * 60 * 1000);
 
 app.listen(PORT, async () => {
   await initDB();

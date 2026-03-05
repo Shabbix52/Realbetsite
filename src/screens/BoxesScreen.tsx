@@ -174,7 +174,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   useEffect(() => {
     const tid = savedAuth?.twitterId;
     if (!tid) return;
-    fetch(getApiUrl(`/auth/scores/${tid}`))
+    const ac = new AbortController();
+    fetch(getApiUrl(`/auth/scores/${tid}`), { signal: ac.signal })
       .then(r => r.json())
       .then(data => {
         if (!data) return;
@@ -194,8 +195,17 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           setDiscordUserId(data.discordId);
           setTasks(p => ({ ...p, discord: true }));
         }
+        // Infer tasks.follow from total_points vs box sum so the bonus is
+        // restored correctly when loading from DB on a new device.
+        if (data.boxes && data.totalPoints) {
+          const boxSum = data.boxes.reduce((s: number, b: any) => s + (b.points || 0), 0);
+          const inferredBonus = Math.max(0, data.totalPoints - boxSum);
+          const discordBonus = data.discordId ? 500 : 0;
+          if ((inferredBonus - discordBonus) >= 500) setTasks(p => ({ ...p, follow: true }));
+        }
       })
-      .catch(() => {});
+      .catch(err => { if (err.name !== 'AbortError') console.error(err); });
+    return () => ac.abort();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist auth state to localStorage whenever it changes
@@ -392,6 +402,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                       setDiscordVerified(true);
                       setDiscordUserId(data.discordId);
                       setTasks(p => ({ ...p, discord: true }));
+                    }
+                    // Infer tasks.follow from total_points vs box sum
+                    if (data.boxes && data.totalPoints) {
+                      const boxSum = data.boxes.reduce((s: number, b: any) => s + (b.points || 0), 0);
+                      const inferredBonus = Math.max(0, data.totalPoints - boxSum);
+                      const discordBonus = data.discordId ? 500 : 0;
+                      if ((inferredBonus - discordBonus) >= 500) setTasks(p => ({ ...p, follow: true }));
                     }
                   })
                   .catch(() => {});

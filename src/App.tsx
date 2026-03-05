@@ -7,6 +7,7 @@ import BoxesScreen from './screens/BoxesScreen';
 import VIPScreen from './screens/VIPScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import AdminScreen from './screens/AdminScreen';
+import { sanitizeAvatarUrl } from './config';
 
 export type Screen = 'hero' | 'boxes' | 'vip' | 'leaderboard' | 'admin';
 
@@ -75,9 +76,20 @@ function processMobileOAuthReturn(): { twitterId: string; username: string; pfp:
     if (!result.success || !result.user) return null;
 
     const user = result.user;
-    const pfp = user.avatar
-      ? user.avatar.replace('_normal', '_400x400')
-      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`;
+    if (typeof user.id !== 'string' || user.id.length > 100) return null;
+    if (typeof user.username !== 'string' || user.username.length > 100) return null;
+    if (user.avatar !== undefined && typeof user.avatar !== 'string') return null;
+    if (user.followersCount !== undefined && (
+      typeof user.followersCount !== 'number' ||
+      user.followersCount < 0 ||
+      user.followersCount > 10_000_000
+    )) return null;
+
+    const pfp = sanitizeAvatarUrl(
+      user.avatar
+        ? user.avatar.replace('_normal', '_400x400')
+        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
+    );
 
     // Write auth state for BoxesScreen to read on mount
     const existingRaw = localStorage.getItem(AUTH_STATE_KEY_APP);
@@ -166,7 +178,7 @@ function App() {
 
   const handleUserProfileUpdate = useCallback((twitterId: string, username: string, pfp: string, isNewUser?: boolean) => {
     setUserData(prev => {
-      const updated = { ...prev, twitterId, username, pfp, isNewUser };
+      const updated = { ...prev, twitterId, username, pfp: sanitizeAvatarUrl(pfp), isNewUser };
       saveUserProfile(updated);
       return updated;
     });

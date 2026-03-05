@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
 import { getTierForFollowers, calculateAllocationDollars, calculateRewardSplit } from '../tierConfig';
-import { getApiUrl } from '../config';
+import { getApiUrl, sanitizeAvatarUrl } from '../config';
 
 const HUB_CONNECT_URL = import.meta.env.VITE_HUB_CONNECT_URL || 'https://hub.realbet.io/connect';
 
@@ -139,7 +139,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
 
         // 3. Draw avatar in a circle clip (positions relative to card)
         try {
-          const avatar = await loadImg(userData.pfp);
+          const avatar = await loadImg(sanitizeAvatarUrl(userData.pfp));
           const ax = cardX + 0.0793 * cardW, ay = cardY + 0.0972 * cardH;
           const aw = 0.1789 * cardW, ah = 0.2952 * cardH;
           const radius = Math.min(aw, ah) / 2;
@@ -283,7 +283,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             style={{ left: '7.93%', top: '9.72%', width: '17.89%', height: '29.52%' }}
           >
             <img
-              src={userData.pfp}
+              src={sanitizeAvatarUrl(userData.pfp)}
               alt="avatar"
               className="w-full h-full object-cover"
             />
@@ -395,8 +395,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   // Load referral data + restore share state from DB + sync authoritative totalPoints
   useEffect(() => {
     if (!userData.twitterId) return;
+    const ac = new AbortController();
     // Fetch scores — this is the single source of truth for totalPoints
-    fetch(getApiUrl(`/auth/scores/${userData.twitterId}`))
+    fetch(getApiUrl(`/auth/scores/${userData.twitterId}`), { signal: ac.signal })
       .then(r => r.json())
       .then(data => {
         if (!data) return;
@@ -417,9 +418,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
           setAccountLinked(true);
         }
       })
-      .catch(() => {});
+      .catch(err => { if (err.name !== 'AbortError') console.error(err); });
     setReferralLoading(true);
-    fetch(getApiUrl(`/auth/referral/${userData.twitterId}`))
+    fetch(getApiUrl(`/auth/referral/${userData.twitterId}`), { signal: ac.signal })
       .then(r => r.json())
       .then(data => {
         if (data.referralCode) setReferralCode(data.referralCode);
@@ -435,8 +436,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
           autoApplyReferral(referralCodeInput.trim());
         }
       })
-      .catch(() => {})
+      .catch(err => { if (err.name !== 'AbortError') console.error(err); })
       .finally(() => setReferralLoading(false));
+    return () => ac.abort();
   }, [userData.twitterId]);
 
   // Auto-apply a referral code (silent, from URL capture)
