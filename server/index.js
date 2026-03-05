@@ -22,6 +22,7 @@ const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
 const allowedOrigins = [
   CLIENT_URL,
   'http://localhost:5173',
+  'https://claim.realbet.io',
   /^https:\/\/lovable-[a-z0-9-]+\.vercel\.app$/
 ];
 
