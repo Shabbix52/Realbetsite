@@ -8,7 +8,7 @@ import pg from 'pg';
 import { createClient } from 'redis';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '..', '.env') });
@@ -563,8 +563,20 @@ app.post('/auth/discord/link', async (req, res) => {
 const SCORE_SECRET = process.env.SCORE_SECRET || process.env.ADMIN_KEY;
 const TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-// Gold point ranges per follower tier — single source of truth in shared/tierData.json
-const _rawTiers = JSON.parse(readFileSync(join(__dirname, '..', 'shared', 'tierData.json'), 'utf8'));
+// Gold point ranges per follower tier.
+// Prefer server-local tierData.json (works when Railway root is /server),
+// then fall back to monorepo shared/tierData.json for local dev.
+const TIER_DATA_PATHS = [
+  join(__dirname, 'tierData.json'),
+  join(__dirname, '..', 'shared', 'tierData.json'),
+];
+
+const tierDataPath = TIER_DATA_PATHS.find(p => existsSync(p));
+if (!tierDataPath) {
+  throw new Error(`Missing tier data file. Tried: ${TIER_DATA_PATHS.join(', ')}`);
+}
+
+const _rawTiers = JSON.parse(readFileSync(tierDataPath, 'utf8'));
 const GOLD_TIERS_SERVER = _rawTiers.map(t => ({
   min: t.minFollowers,
   max: t.maxFollowers === 999999999 ? Infinity : t.maxFollowers,
