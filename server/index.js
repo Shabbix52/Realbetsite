@@ -611,6 +611,10 @@ function getGoldRange(followersCount) {
   return [tier.ptMin, tier.ptMax];
 }
 
+function getGoldTier(followersCount) {
+  return GOLD_TIERS_SERVER.find(t => followersCount >= t.min && followersCount < t.max) || GOLD_TIERS_SERVER[0];
+}
+
 function rollBoxPoints(type, followersCount) {
   const fc = parseInt(followersCount, 10) || 0;
   let points, tierName;
@@ -661,6 +665,36 @@ app.get('/auth/scores/roll', async (req, res) => {
   const { type, twitterId, followersCount } = req.query;
   if (!type || !twitterId) return res.status(400).json({ error: 'type and twitterId required' });
   if (!['bronze', 'silver', 'gold'].includes(type)) return res.status(400).json({ error: 'Invalid box type' });
+
+  // Cap gold points by remaining tier allowance so 60/40 split stays accountable.
+  if (type === 'gold') {
+    try {
+      const fc = parseInt(followersCount, 10) || 0;
+      const tier = getGoldTier(fc);
+      const result = await pool.query(
+        'SELECT bronze_points, silver_points FROM scores WHERE twitter_id = $1',
+        [twitterId]
+      );
+      const bronzePoints = result.rows[0]?.bronze_points || 0;
+      const silverPoints = result.rows[0]?.silver_points || 0;
+      const basePoints = bronzePoints + silverPoints;
+
+      // Keep power score under the tier's effective cap (derived from maxFreePlay).
+      const tierMaxPowerScore = Math.floor((tier.maxFreePlay * 20) / 0.6);
+      const remainingGoldCap = Math.max(1, tierMaxPowerScore - basePoints);
+      const cappedMin = Math.max(1, Math.min(tier.ptMin, remainingGoldCap));
+      const cappedMax = Math.max(cappedMin, Math.min(tier.ptMax, remainingGoldCap));
+      const points = srvRandInRange(cappedMin, cappedMax);
+      const tierName = TIER_NAMES_SERVER.gold[crypto.randomInt(TIER_NAMES_SERVER.gold.length)];
+
+      const issuedAt = Date.now();
+      const token = generateScoreToken(twitterId, type, points, tierName, issuedAt);
+      return res.json({ points, tierName, token, issuedAt });
+    } catch (err) {
+      console.error('Gold roll cap error:', err.message);
+      return res.status(500).json({ error: 'Gold roll failed' });
+    }
+  }
 
   const rolled = rollBoxPoints(type, followersCount);
   if (!rolled) return res.status(500).json({ error: 'Roll failed' });
@@ -1122,7 +1156,7 @@ app.post('/auth/share-image', express.json({ limit: '6mb' }), async (req, res) =
       [twitterId, base64Data]
     );
     await redis.del(`scores:${twitterId}`);
-    const shareUrl = `${CLIENT_URL}/share/${twitterId}`;
+    const shareUrl = `${CLIENT_URL}/share/${twitterId}?v=${Date.now()}`;
     res.json({ success: true, shareUrl });
   } catch (err) {
     console.error('Share image save error:', err.message);
@@ -1140,7 +1174,10 @@ app.get('/share-image/:twitterId.png', async (req, res) => {
     if (!matches) return res.status(404).send('Not found');
     const imgBuffer = Buffer.from(matches[2], 'base64');
     res.set('Content-Type', `image/${matches[1]}`);
-    res.set('Cache-Control', 'public, max-age=3600');
+    // Always serve the latest generated VIP image (prevents stale cards after reset/regeneration)
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.send(imgBuffer);
   } catch (err) {
     console.error('Share image serve error:', err.message);
@@ -1151,18 +1188,28 @@ app.get('/share-image/:twitterId.png', async (req, res) => {
 // OG share page — serves HTML with meta tags so Twitter unfurls the VIP card image
 app.get('/share/:twitterId', async (req, res) => {
   const { twitterId } = req.params;
+  const version = req.query.v ? String(req.query.v) : '';
+  const ref = req.query.ref ? String(req.query.ref) : '';
   try {
     const { rows } = await pool.query('SELECT username, total_points, share_image FROM scores WHERE twitter_id = $1', [twitterId]);
     const user = rows[0];
     const username = user?.username || 'Player';
     const points = user?.total_points || 0;
-    const imageUrl = user?.share_image ? `${CLIENT_URL}/share-image/${twitterId}.png` : `${CLIENT_URL}/VIPcard.png`;
+    const imageUrlBase = user?.share_image ? `${CLIENT_URL}/share-image/${twitterId}.png` : `${CLIENT_URL}/VIPcard.png`;
+    const imageUrl = version ? `${imageUrlBase}?v=${encodeURIComponent(version)}` : imageUrlBase;
     const title = `@${username} — ${points.toLocaleString()} Power Points`;
     const description = `SEASON 1 ALLOCATION | The House is open. #RealBetSeason1`;
-    const siteUrl = CLIENT_URL;
+    const siteUrl = ref
+      ? `${CLIENT_URL}${CLIENT_URL.includes('?') ? '&' : '?'}ref=${encodeURIComponent(ref)}`
+      : CLIENT_URL;
+    const sharePageUrl = ref
+      ? `${CLIENT_URL}/share/${twitterId}?ref=${encodeURIComponent(ref)}`
+      : `${CLIENT_URL}/share/${twitterId}`;
 
     res.set('Content-Type', 'text/html');
-    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -1173,7 +1220,7 @@ app.get('/share/:twitterId', async (req, res) => {
   <meta property="og:image" content="${imageUrl}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="628" />
-  <meta property="og:url" content="${CLIENT_URL}/share/${twitterId}" />
+  <meta property="og:url" content="${sharePageUrl}" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />

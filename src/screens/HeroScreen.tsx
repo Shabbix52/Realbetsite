@@ -281,7 +281,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
             </motion.span>
           ))}
           <br />
-          {'Open your boxes. Lock your Power Score. Claim what\'s yours.'.split(' ').map((word, i) => (
+          {'Three boxes. One Power Score. The higher you score, the bigger your Season 1 allocation.'.split(' ').map((word, i) => (
             <motion.span
               key={`l2-${i}`}
               initial={{ opacity: 0, filter: 'blur(4px)' }}

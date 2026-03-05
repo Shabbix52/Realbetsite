@@ -293,7 +293,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // Fallback: local random (no token; range validation still applies on submit)
         if (box.type === 'gold') {
           const tier = getTierForFollowers(followersCount);
-          points = randomInRange(tier.goldPointsMin, tier.goldPointsMax);
+          const basePoints = boxes
+            .filter(b => b.type !== 'gold')
+            .reduce((sum, b) => sum + (b.points || 0), 0);
+          const remainingGoldCap = Math.max(1, tier.maxPowerScore - basePoints);
+          const cappedMin = Math.max(1, Math.min(tier.goldPointsMin, remainingGoldCap));
+          const cappedMax = Math.max(cappedMin, Math.min(tier.goldPointsMax, remainingGoldCap));
+          points = randomInRange(cappedMin, cappedMax);
         } else {
           const [min, max] = BOX_POINTS[box.type];
           points = randomInRange(min, max);

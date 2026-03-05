@@ -512,6 +512,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const displayPoints = useCountUp(powerScore, 1200);
 
   const [shareLoading, setShareLoading] = useState(false);
+  const tweetTemplateIndexRef = useRef(0);
 
   const handleShare = async () => {
     if (shareLoading) return;
@@ -535,7 +536,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         if (data.shareUrl) {
           // Use the OG share page URL so Twitter unfurls the card image
           shareLink = data.shareUrl;
-          if (referralCode) shareLink += `?ref=${referralCode}`;
+          if (referralCode) {
+            shareLink += `${shareLink.includes('?') ? '&' : '?'}ref=${referralCode}`;
+          }
         }
       }
     } catch (err) {
@@ -543,15 +546,18 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
       // Fall through — still open tweet with text only
     }
 
-    const baseUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
-    const refSuffix = referralCode ? `?ref=${referralCode}` : '';
-    const claimLink = shareLink + (shareLink.includes('?') ? `&ref=${referralCode}` : refSuffix);
-    const joinLine = referralCode
-      ? `\nIf you're not in yet, start here:\n${baseUrl}${refSuffix}`
-      : '';
-    const text = encodeURIComponent(
-      `Season 1 Allocation: $${allocationDollars.toLocaleString()}\nPower Score: ${powerScore.toLocaleString()}\n\nThe grind paid off.\n\n@RealBet Season 1 rewards are live and the house is officially open.\n\nClaim your rewards 👇\n${claimLink}${joinLine}`,
-    );
+    const referralLink = shareLink;
+
+    const tweetTemplates = [
+      '.@RealBet just gave me a VIP card and a Season 1 allocation for free\n\ni didn\'t even have to deposit anything lol\n\n[Referral Link]',
+      'my @RealBet Season 1 VIP card just hit different\n\nopen your boxes. thank me later.\n\n[Referral Link]',
+      'not gonna lie @RealBet Season 1 allocation flow is clean\n\nthree boxes -> VIP card -> free play + airdrop points\n\n[Referral Link]',
+      'the house is open and apparently i\'m VIP now\n\n@RealBet season 1. takes 30 seconds.\n\n[Referral Link]',
+    ];
+    const template = tweetTemplates[tweetTemplateIndexRef.current % tweetTemplates.length];
+    tweetTemplateIndexRef.current += 1;
+    const tweetBody = template.replace('[Referral Link]', referralLink);
+    const text = encodeURIComponent(tweetBody);
     const tweetUrl = `https://twitter.com/intent/tweet?text=${text}`;
     // Open tweet window — window.open returns null if popups are blocked
     const opened = window.open(tweetUrl, '_blank', 'noopener,noreferrer');
@@ -864,8 +870,11 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               <div>
                 <p className="font-display font-bold text-xl text-rb-muted tracking-wider uppercase">Refer Friends</p>
                 <p className="text-sm text-rb-muted/50 font-mono mt-1">
-                  Earn <span className="text-brand-gold font-semibold">{referralBonusPerRef} Real Rewards</span> per referral
+                  Earn <span className="text-brand-gold font-semibold">{referralBonusPerRef} Real Points</span> per referral
                   {referralCount > 0 && <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-label tracking-wider">{referralCount} REFERRED</span>}
+                </p>
+                <p className="text-xs text-rb-muted/45 font-mono mt-2 leading-relaxed">
+                  Referral points are added directly to your Season 1 leaderboard score in the Hub.
                 </p>
               </div>
 
@@ -999,16 +1008,31 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       <span className="inline-block w-6 h-px bg-brand-red/60" />
                       <p className="font-mono text-[10px] tracking-[0.3em] text-rb-muted/50 uppercase">Season 1 Allocation</p>
                     </div>
-                    <motion.p
+                    <motion.div
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
-                      className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
-                      style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+                      className="grid grid-cols-2 gap-4"
                     >
-                      {powerScore.toLocaleString()}
-                    </motion.p>
-                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
+                      <div>
+                        <p
+                          className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
+                          style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+                        >
+                          {powerScore.toLocaleString()}
+                        </p>
+                        <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
+                      </div>
+                      <div>
+                        <p
+                          className="text-3xl sm:text-4xl font-bold font-display text-brand-gold tracking-wider"
+                          style={{ textShadow: '0 0 28px rgba(246,195,74,0.2), 0 4px 12px rgba(0,0,0,0.8)' }}
+                        >
+                          {referralBonusPoints.toLocaleString()}
+                        </p>
+                        <p className="text-brand-gold/70 text-sm font-mono tracking-wider mt-1">Referral Points</p>
+                      </div>
+                    </motion.div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -1058,6 +1082,42 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                     <LockIcon className="w-4 h-4" />
                     CLAIM REWARDS
                   </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <p className="text-rb-muted/60 text-xs font-mono leading-relaxed">
+                        Go to the casino. Place bets. Earn real rewards.
+                      </p>
+                      <a
+                        href="https://realbet.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center py-3.5 rounded-lg text-[#F2F2F2] text-sm sm:text-base font-bold font-display tracking-[0.14em] transition-all"
+                        style={{ background: 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)', boxShadow: '0 4px 25px hsla(355, 83%, 41%, 0.35)' }}
+                      >
+                        GO TO CASINO &rarr;
+                      </a>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-rb-muted/60 text-xs font-mono leading-relaxed">
+                        Quests, leaderboard, streaks & mystery boxes.
+                      </p>
+                      <a
+                        href="https://hub.realbet.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center py-3.5 rounded-lg bg-[#111118] text-brand-gold text-sm sm:text-base font-bold font-display tracking-[0.14em] border border-brand-gold/30 hover:bg-[#17171F] transition-colors"
+                      >
+                        ENTER THE HUB &rarr;
+                      </a>
+                    </div>
+                  </div>
                 </motion.div>
               ) : (
                 /* POST-SHARE STATE */
@@ -1076,16 +1136,31 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       <span className="inline-block w-6 h-px bg-brand-red/60" />
                       <p className="font-mono text-[10px] tracking-[0.3em] text-rb-muted/50 uppercase">Season 1 Allocation</p>
                     </div>
-                    <motion.p
+                    <motion.div
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
-                      className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
-                      style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+                      className="grid grid-cols-2 gap-4"
                     >
-                      {powerScore.toLocaleString()}
-                    </motion.p>
-                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
+                      <div>
+                        <p
+                          className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
+                          style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+                        >
+                          {powerScore.toLocaleString()}
+                        </p>
+                        <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
+                      </div>
+                      <div>
+                        <p
+                          className="text-3xl sm:text-4xl font-bold font-display text-brand-gold tracking-wider"
+                          style={{ textShadow: '0 0 28px rgba(246,195,74,0.2), 0 4px 12px rgba(0,0,0,0.8)' }}
+                        >
+                          {referralBonusPoints.toLocaleString()}
+                        </p>
+                        <p className="text-brand-gold/70 text-sm font-mono tracking-wider mt-1">Referral Points</p>
+                      </div>
+                    </motion.div>
                   </div>
 
                   {/* 60/40 split cards */}
@@ -1192,6 +1267,42 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                         {claimError}
                       </motion.p>
                     )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <p className="text-rb-muted/60 text-xs font-mono leading-relaxed">
+                        Go to the casino. Place bets. Earn real rewards.
+                      </p>
+                      <a
+                        href="https://realbet.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center py-3.5 rounded-lg text-[#F2F2F2] text-sm sm:text-base font-bold font-display tracking-[0.14em] transition-all"
+                        style={{ background: 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)', boxShadow: '0 4px 25px hsla(355, 83%, 41%, 0.35)' }}
+                      >
+                        GO TO CASINO &rarr;
+                      </a>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-rb-muted/60 text-xs font-mono leading-relaxed">
+                        Quests, leaderboard, streaks & mystery boxes.
+                      </p>
+                      <a
+                        href="https://hub.realbet.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center py-3.5 rounded-lg bg-[#111118] text-brand-gold text-sm sm:text-base font-bold font-display tracking-[0.14em] border border-brand-gold/30 hover:bg-[#17171F] transition-colors"
+                      >
+                        ENTER THE HUB &rarr;
+                      </a>
+                    </div>
                   </div>
 
                   <p className="text-rb-muted/30 text-[10px] font-mono text-center tracking-wider">
