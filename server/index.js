@@ -53,8 +53,8 @@ app.use(cors({
   },
   credentials: true 
 }));
-// Use a larger limit globally to support share-image uploads (base64 PNG ~1-2MB)
-app.use('/auth/share-image', express.json({ limit: '3mb' }));
+// Use a larger limit for share-image uploads (base64 PNG from 2400×1256 canvas can reach 4-5MB)
+app.use('/auth/share-image', express.json({ limit: '6mb' }));
 app.use(express.json({ limit: '16kb' }));
 
 // Rate limiting
@@ -1091,13 +1091,13 @@ app.get('/auth/claim-status/:twitterId', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // Upload VIP card screenshot (needs larger body limit)
-app.post('/auth/share-image', express.json({ limit: '2mb' }), async (req, res) => {
+app.post('/auth/share-image', express.json({ limit: '6mb' }), async (req, res) => {
   const { twitterId, imageBase64 } = req.body;
   if (!twitterId || !imageBase64) return res.status(400).json({ error: 'twitterId and imageBase64 required' });
   // Validate: must be a data URI or raw base64 (PNG)
   const base64Data = imageBase64.startsWith('data:') ? imageBase64 : `data:image/png;base64,${imageBase64}`;
-  // Limit to ~1.5MB of base64
-  if (base64Data.length > 2_000_000) return res.status(400).json({ error: 'Image too large' });
+  // Limit to ~5MB of base64
+  if (base64Data.length > 6_000_000) return res.status(400).json({ error: 'Image too large' });
   try {
     await pool.query(
       `INSERT INTO scores (twitter_id, share_image)

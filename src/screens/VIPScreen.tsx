@@ -823,13 +823,13 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
             <button
               onClick={handleShare}
               disabled={shareLoading || (shared && claimStatus !== 'claimed')}
-              style={{ touchAction: 'manipulation', boxShadow: shared ? undefined : '0 4px 20px rgba(29,155,240,0.3)' }}
-              className={`w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold text-sm tracking-widest transition-all active:scale-[0.98] ${
+              style={{ touchAction: 'manipulation', boxShadow: shared ? undefined : '0 4px 25px hsla(355, 83%, 41%, 0.4)', background: (!shared && !shareLoading) ? 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)' : undefined }}
+              className={`w-full flex items-center justify-center gap-2.5 py-4 rounded font-bold text-2xl tracking-widest transition-all active:scale-[0.98] font-display ${
                 shared
                   ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                   : shareLoading
-                    ? 'bg-[#1DA1F2]/70 text-white cursor-wait'
-                    : 'bg-[#1DA1F2] hover:bg-[#1a8cd8] text-white'
+                    ? 'text-white cursor-wait'
+                    : 'text-[#F2F2F2]'
               }`}
             >
               {shareLoading ? (
@@ -913,7 +913,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                     );
                     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'width=550,height=420');
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[#1DA1F2]/10 hover:bg-[#1DA1F2]/20 text-[#1DA1F2] text-xs font-bold font-label tracking-wider border border-[#1DA1F2]/10 transition-all"
+                  style={{ background: 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)', boxShadow: '0 4px 25px hsla(355, 83%, 41%, 0.4)' }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded font-bold text-sm font-display tracking-widest transition-all text-[#F2F2F2] active:scale-[0.98]"
                 >
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -1003,8 +1004,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                   <button
                     onClick={handleShare}
                     disabled={shareLoading}
-                    style={{ touchAction: 'manipulation', boxShadow: '0 4px 20px rgba(29,155,240,0.3)' }}
-                    className="w-full py-4 rounded-xl bg-[#1DA1F2] hover:bg-[#1a8cd8] text-white font-bold text-sm font-label tracking-wider transition-all flex items-center justify-center gap-2.5 disabled:opacity-60"
+                    style={{ touchAction: 'manipulation', boxShadow: shareLoading ? undefined : '0 4px 25px hsla(355, 83%, 41%, 0.4)', background: !shareLoading ? 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)' : undefined }}
+                    className="w-full py-4 rounded font-bold text-2xl font-display tracking-widest transition-all flex items-center justify-center gap-2.5 disabled:opacity-60 text-[#F2F2F2] active:scale-[0.98]"
                   >
                     {shareLoading ? (
                       <>
