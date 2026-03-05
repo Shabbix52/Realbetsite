@@ -89,7 +89,7 @@ for (const key of REQUIRED_ENV) {
 // PostgreSQL
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: true },
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
 });
 
 async function initDB() {
