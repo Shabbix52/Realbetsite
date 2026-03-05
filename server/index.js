@@ -1309,7 +1309,7 @@ app.get('/auth/leaderboard', async (req, res) => {
 //  REFERRAL SYSTEM — Generate codes, track referrals, award bonuses
 // ─────────────────────────────────────────────
 
-const REFERRAL_BONUS_REFERRER = 20; // Points awarded to referrer per successful referral
+const REFERRAL_BONUS_REFERRER = 50; // Points awarded to referrer per successful referral
 const REFERRAL_BONUS_REFERRED = 0;  // Points awarded to the referred user
 const MAX_REFERRAL_BONUS = 25000;     // Cap total referral bonus per user
 

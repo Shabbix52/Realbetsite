@@ -341,16 +341,27 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   // Watch tasks state — follow is required; discord is optional bonus
   // Gold unlocks as soon as follow is done
   useEffect(() => {
-    if (!tasks.follow) return;
-    setBoxes(prev => {
-      const gold = prev.find(b => b.type === 'gold');
-      if (!gold || gold.state === 'ready' || gold.state === 'revealed') return prev;
+    if (!tasks.follow) {
+      // Keep task bonus in sync even before follow is completed.
+      saveScoresToDB(boxes, tasks);
+      return;
+    }
+
+    const gold = boxes.find(b => b.type === 'gold');
+    if (!gold) return;
+
+    if (gold.state === 'locked') {
       console.log('[Tasks] useEffect: follow done — unlocking gold box');
-      return prev.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
-    });
-    // Persist updated bonus with current tasks
+      const updated = boxes.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
+      setBoxes(updated);
+      saveBoxes(updated);
+      saveScoresToDB(updated, tasks);
+      return;
+    }
+
+    // Persist updated bonus with current tasks.
     saveScoresToDB(boxes, tasks);
-  }, [tasks.follow, tasks.discord]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tasks.follow, tasks.discord, boxes, tasks, saveScoresToDB]);
 
   const handleTask = useCallback(async (task: 'follow' | 'discord') => {
     if (taskLoading) return;
@@ -372,7 +383,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         setTimeout(() => {
           setFollowVerifying(false);
           setTasks(p => ({ ...p, follow: true }));
-        }, 3000);
+        }, 8000);
       };
 
       if (!twitterVerified) {
@@ -831,6 +842,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     <div>
                       <p className="text-sm font-bold tracking-wider text-white/90">Join Discord <span className="text-white/30 font-normal text-[10px] tracking-wider ml-1">(OPTIONAL)</span></p>
                       <p className="text-xs text-brand-gold/60 font-label">+500 power pts bonus</p>
+                      {!twitterVerified && !tasks.discord && (
+                        <p className="text-xs text-white/35 mt-0.5">Connect X first to unlock Discord</p>
+                      )}
                       {discordVerified && !tasks.discord && !discordError && (
                         <p className="text-xs text-purple-400/60 mt-0.5">Connected — checking membership...</p>
                       )}
@@ -853,11 +867,13 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     </div>
                   </div>
                   <button
-                    onClick={() => !tasks.discord && handleTask('discord')}
-                    disabled={tasks.discord || taskLoading === 'discord'}
+                    onClick={() => twitterVerified && !tasks.discord && handleTask('discord')}
+                    disabled={!twitterVerified || tasks.discord || taskLoading === 'discord'}
                     className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all ${
                       tasks.discord
                         ? 'bg-green-500/20 text-green-400 cursor-default'
+                        : !twitterVerified
+                        ? 'bg-white/5 text-white/35 border border-white/10 cursor-not-allowed'
                         : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/20 cursor-pointer'
                     } ${taskLoading === 'discord' ? 'opacity-50' : ''}`}
                   >
@@ -941,7 +957,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 whileHover={{ y: -10, scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => openBox(2)}
-                className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-[420px] md:h-[420px] mx-auto rounded-2xl cursor-pointer overflow-hidden backdrop-blur-md"
+                className={`relative w-64 h-64 sm:w-80 sm:h-80 md:w-[420px] md:h-[420px] mx-auto rounded-2xl cursor-pointer overflow-hidden backdrop-blur-md ${boxes[2]?.state === 'opening' ? 'animate-shake' : ''}`}
                 style={{
                   background: 'rgba(10,11,15,0.75)',
                   border: '1px solid rgba(246,195,74,0.55)',
@@ -966,7 +982,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 </div>
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <img src={BOX_IMAGES.gold} alt="Gold box" className="w-48 h-48 sm:w-64 sm:h-64 object-contain mb-3 sm:mb-4 drop-shadow-[0_0_20px_rgba(246,196,74,0.4)]" />
+                  <img src={BOX_IMAGES.gold} alt="Gold box" className={`w-48 h-48 sm:w-64 sm:h-64 object-contain mb-3 sm:mb-4 drop-shadow-[0_0_20px_rgba(246,196,74,0.4)] ${boxes[2]?.state === 'opening' ? 'animate-bounce' : ''}`} />
                   <p className="font-label text-sm text-brand-gold/70 tracking-widest uppercase animate-pulse">
                     OPEN &amp; LOCK SCORE
                   </p>

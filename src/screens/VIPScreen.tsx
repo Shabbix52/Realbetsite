@@ -378,7 +378,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const [referralCode, setReferralCode] = useState<string>('');
   const [referralCount, setReferralCount] = useState(0);
   const [referralBonusPoints, setReferralBonusPoints] = useState(0);
-  const [referralBonusPerRef, setReferralBonusPerRef] = useState(20);
+  const [referralBonusPerRef, setReferralBonusPerRef] = useState(50);
   const [referralReferredBonus, setReferralReferredBonus] = useState(0);
   const [referrals, setReferrals] = useState<{ username: string; bonus: number; status: string; totalPoints: number }[]>([]);
   const [referralLoading, setReferralLoading] = useState(false);
@@ -427,7 +427,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         if (data.referralCode) setReferralCode(data.referralCode);
         setReferralCount(data.referralCount || 0);
         setReferralBonusPoints(data.referralBonusPoints || 0);
-        setReferralBonusPerRef(data.bonusPerReferral ?? 20);
+        setReferralBonusPerRef(data.bonusPerReferral ?? 50);
         setReferralReferredBonus(data.referredBonus ?? 0);
         setReferrals(data.referrals || []);
         setReferredBy(data.referredBy || null);
@@ -848,8 +848,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               )}
             </button>
             {!shared && (
-              <p className="text-center text-rb-muted/35 text-xs font-mono tracking-wider">
-                Share your VIP card to unlock Season 1 rewards
+              <p className="text-center text-rb-muted/60 text-sm font-mono leading-relaxed">
+                Your allocation is ready. Share your <span className="text-brand-red font-semibold">VIP card</span> on X to activate your <span className="text-brand-red font-semibold">Season 1</span> rewards.
               </p>
             )}
 
@@ -909,8 +909,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                     );
                     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'width=550,height=420');
                   }}
-                  style={{ background: 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)', boxShadow: '0 4px 25px hsla(355, 83%, 41%, 0.4)' }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded font-bold text-sm font-display tracking-widest transition-all text-[#F2F2F2] active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(180deg, #F6C34A 0%, #C9982E 100%)', boxShadow: '0 4px 25px rgba(246,195,74,0.35)' }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded font-bold text-sm font-display tracking-widest transition-all text-black active:scale-[0.98]"
                 >
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -994,44 +994,65 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                   transition={{ duration: 0.35 }}
                   className="glass-panel rounded-2xl p-6 space-y-4"
                 >
-                  <p className="text-sm text-rb-muted/60 font-mono leading-relaxed text-center">
-                    Your allocation is ready. Share your <span className="text-brand-red font-semibold">VIP card</span> on X to activate your <span className="text-brand-red font-semibold">Season 1</span> rewards.
-                  </p>
-                  <button
-                    onClick={handleShare}
-                    disabled={shareLoading}
-                    style={{ touchAction: 'manipulation', boxShadow: shareLoading ? undefined : '0 4px 25px hsla(355, 83%, 41%, 0.4)', background: !shareLoading ? 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)' : undefined }}
-                    className="w-full py-4 rounded font-bold text-2xl font-display tracking-widest transition-all flex items-center justify-center gap-2.5 disabled:opacity-60 text-[#F2F2F2] active:scale-[0.98]"
-                  >
-                    {shareLoading ? (
-                      <>
-                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" className="opacity-25" /><path d="M4 12a8 8 0 018-8" className="opacity-75" />
-                        </svg>
-                        CAPTURING CARD...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                        </svg>
-                        SHARE ON X
-                      </>
-                    )}
-                  </button>
-                  <div className="rounded-xl p-4 space-y-3 border border-brand-red/10 bg-brand-red/[0.03]">
-                    <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase">Breakdown Preview</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-rb-muted/70 font-mono">$Real Reward</span>
-                        <span className="text-sm font-bold font-display text-rb-muted tracking-wider">{powerScoreConvertedToRealReward.toLocaleString()} ~ ${split.freePlay.dollars.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-rb-muted/70 font-mono">Season 1 REAL Points</span>
-                        <span className="text-sm font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
-                      </div>
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="inline-block w-6 h-px bg-brand-red/60" />
+                      <p className="font-mono text-[10px] tracking-[0.3em] text-rb-muted/50 uppercase">Season 1 Allocation</p>
                     </div>
-                    <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider">1 $Real = 20 power score</p>
+                    <motion.p
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
+                      className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
+                      style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
+                    >
+                      {powerScore.toLocaleString()}
+                    </motion.p>
+                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold font-display text-brand-red">60%</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">$Real Rewards</p>
+                    </div>
+                    <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold font-display text-brand-red">40%</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Season 1 REAL Points</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                  </div>
+
+                  <div>
+                    <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase mb-3">Breakdown</p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
+                          <span className="text-sm text-rb-muted/70 font-mono">$Real Rewards</span>
+                        </div>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{powerScoreConvertedToRealReward.toLocaleString()} ~ ${split.freePlay.dollars.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
+                          <span className="text-sm text-rb-muted/70 font-mono">Season 1 REAL Points</span>
+                        </div>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
+                      </div>
+                      <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider text-right">1 $Real = 20 Power Score</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+                    <div className="w-1.5 h-1.5 bg-brand-red/50 rotate-45" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
                   </div>
                   <div className="w-full py-4 rounded-xl border border-brand-red/10 bg-brand-red/[0.03] text-rb-muted/30 text-sm font-bold font-display tracking-[0.15em] flex items-center justify-center gap-2 cursor-not-allowed select-none">
                     <LockIcon className="w-4 h-4" />
@@ -1062,10 +1083,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
                       style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
                     >
-                      ${split.freePlay.dollars.toLocaleString()}
+                      {powerScore.toLocaleString()}
                     </motion.p>
-                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Season 1 Real Rewards</p>
-                    <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider mt-1">1 $Real = 20 power score</p>
+                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
                   </div>
 
                   {/* 60/40 split cards */}
@@ -1104,6 +1124,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                         </div>
                         <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
                       </div>
+                      <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider text-right">1 $Real = 20 Power Score</p>
                     </div>
                   </div>
 
