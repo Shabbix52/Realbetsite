@@ -1,5 +1,4 @@
 ﻿import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
-import html2canvas from 'html2canvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
@@ -96,20 +95,89 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
 
   useImperativeHandle(ref, () => ({
     captureImage: async () => {
-      if (!cardRef.current) return null;
       try {
-        // Reset tilt/animations before capture
-        const el = cardRef.current;
-        const prevTransform = el.style.transform;
-        el.style.transform = 'none';
-        const canvas = await html2canvas(el, {
-          backgroundColor: '#0a0b0f',
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-        });
-        el.style.transform = prevTransform;
+        const SCALE = 2;
+        const W = 589 * SCALE;
+        const H = 357 * SCALE;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        // Ensure fonts are loaded before drawing
+        await Promise.all([
+          document.fonts.load('bold 48px "Bebas Neue"'),
+          document.fonts.load('bold 24px "Space Mono"'),
+        ]);
+
+        // Helper: load an image as a promise
+        const loadImg = (src: string, cors = true): Promise<HTMLImageElement> =>
+          new Promise((resolve, reject) => {
+            const img = new Image();
+            if (cors) img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = src;
+          });
+
+        // 1. Draw card template background
+        const bg = await loadImg('/VIPcard.png', false);
+        ctx.drawImage(bg, 0, 0, W, H);
+
+        // 2. Draw avatar in a circle clip
+        try {
+          const avatar = await loadImg(userData.pfp);
+          const ax = 0.0793 * W, ay = 0.0972 * H;
+          const aw = 0.1789 * W, ah = 0.2952 * H;
+          const radius = Math.min(aw, ah) / 2;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(ax + aw / 2, ay + ah / 2, radius, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(avatar, ax, ay, aw, ah);
+          ctx.restore();
+        } catch {
+          // Avatar failed (CORS / network) — skip
+        }
+
+        // Shared text settings
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#FFFFFF';
+
+        // 3. Draw username (Space Mono bold)
+        const uFontSize = Math.round(0.1118 * H * 0.55);
+        ctx.font = `bold ${uFontSize}px "Space Mono", monospace`;
+        const ux = 0.2808 * W, uy = 0.3451 * H;
+        const uw = 0.4642 * W, uh = 0.1118 * H;
+        ctx.fillText(`@${userData.username}`, ux + uw / 2, uy + uh / 2, uw);
+
+        // 4. Draw dollar + points values (Bebas Neue bold, with glow)
+        const vFontSize = Math.round(0.1246 * H * 0.8);
+        ctx.font = `bold ${vFontSize}px "Bebas Neue", sans-serif`;
+        ctx.shadowColor = 'rgba(255,255,255,0.4)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 2;
+
+        // $REAL Reward (bottom-left)
+        const dx = 0.190 * W, dy = 0.6216 * H;
+        const dw = 0.2369 * W, dh = 0.1246 * H;
+        ctx.fillText(`$${freePlayDollars.toLocaleString()}`, dx + dw / 2, dy + dh / 2, dw);
+
+        // Real Points (bottom-right)
+        const px = 0.5762 * W, py = 0.6216 * H;
+        const pw = 0.2369 * W, ph = 0.1246 * H;
+        ctx.fillText(realPoints.toLocaleString(), px + pw / 2, py + ph / 2, pw);
+
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+
         return canvas.toDataURL('image/png');
       } catch (err) {
         console.error('Card capture failed:', err);
