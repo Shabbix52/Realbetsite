@@ -378,7 +378,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const [referralCode, setReferralCode] = useState<string>('');
   const [referralCount, setReferralCount] = useState(0);
   const [referralBonusPoints, setReferralBonusPoints] = useState(0);
-  const [referralBonusPerRef, setReferralBonusPerRef] = useState(5);
+  const [referralBonusPerRef, setReferralBonusPerRef] = useState(20);
   const [referralReferredBonus, setReferralReferredBonus] = useState(0);
   const [referrals, setReferrals] = useState<{ username: string; bonus: number; status: string; totalPoints: number }[]>([]);
   const [referralLoading, setReferralLoading] = useState(false);
@@ -427,7 +427,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         if (data.referralCode) setReferralCode(data.referralCode);
         setReferralCount(data.referralCount || 0);
         setReferralBonusPoints(data.referralBonusPoints || 0);
-        setReferralBonusPerRef(data.bonusPerReferral ?? 5);
+        setReferralBonusPerRef(data.bonusPerReferral ?? 20);
         setReferralReferredBonus(data.referredBonus ?? 0);
         setReferrals(data.referrals || []);
         setReferredBy(data.referredBy || null);
@@ -508,6 +508,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const tier = getTierForFollowers(userData.followersCount);
   const allocationDollars = calculateAllocationDollars(powerScore);
   const split = calculateRewardSplit(powerScore, tier);
+  const powerScoreConvertedToRealReward = Math.round(split.freePlay.dollars * 20);
   const displayPoints = useCountUp(powerScore, 1200);
 
   const [shareLoading, setShareLoading] = useState(false);
@@ -851,6 +852,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                 Share your VIP card to unlock Season 1 rewards
               </p>
             )}
+
           </motion.div>
 
           {/* ═══ Right Column: Referral + Allocation ═══ */}
@@ -862,7 +864,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               <div>
                 <p className="font-display font-bold text-xl text-rb-muted tracking-wider uppercase">Refer Friends</p>
                 <p className="text-sm text-rb-muted/50 font-mono mt-1">
-                  Earn <span className="text-brand-gold font-semibold">{referralBonusPerRef} Power Score</span> per referral
+                  Earn <span className="text-brand-gold font-semibold">{referralBonusPerRef} Real Rewards</span> per referral
                   {referralCount > 0 && <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-label tracking-wider">{referralCount} REFERRED</span>}
                 </p>
               </div>
@@ -872,7 +874,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-label tracking-wider text-white/40">
                     <span>BONUS EARNED</span>
-                    <span>{referralBonusPoints.toLocaleString()} power pts</span>
+                    <span>{referralBonusPoints.toLocaleString()} real rewards</span>
                   </div>
                 </div>
               )}
@@ -919,7 +921,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
 
               {referredBy && referralReferredBonus > 0 && (
                 <p className="text-[10px] text-green-400/60 font-label tracking-wider">
-                  ✓ Referred by @{referredBy} — +{referralReferredBonus} power pts
+                  ✓ Referred by @{referredBy} — +{referralReferredBonus} real rewards
                 </p>
               )}
 
@@ -1017,6 +1019,20 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       </>
                     )}
                   </button>
+                  <div className="rounded-xl p-4 space-y-3 border border-brand-red/10 bg-brand-red/[0.03]">
+                    <p className="font-label text-[10px] tracking-[0.3em] text-rb-muted/40 uppercase">Breakdown Preview</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-rb-muted/70 font-mono">$Real Reward</span>
+                        <span className="text-sm font-bold font-display text-rb-muted tracking-wider">{powerScoreConvertedToRealReward.toLocaleString()} ~ ${split.freePlay.dollars.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-rb-muted/70 font-mono">Season 1 REAL Points</span>
+                        <span className="text-sm font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider">1 $Real = 20 power score</p>
+                  </div>
                   <div className="w-full py-4 rounded-xl border border-brand-red/10 bg-brand-red/[0.03] text-rb-muted/30 text-sm font-bold font-display tracking-[0.15em] flex items-center justify-center gap-2 cursor-not-allowed select-none">
                     <LockIcon className="w-4 h-4" />
                     CLAIM REWARDS
@@ -1046,9 +1062,10 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                       className="text-4xl sm:text-5xl font-bold font-display text-rb-muted tracking-wider"
                       style={{ textShadow: '0 0 40px hsl(355 83% 41% / 0.25), 0 4px 12px hsl(0 0% 0% / 0.8)' }}
                     >
-                      {displayPoints.toLocaleString()}
+                      ${split.freePlay.dollars.toLocaleString()}
                     </motion.p>
-                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Power Score</p>
+                    <p className="text-rb-muted/50 text-sm font-mono tracking-wider mt-1">Season 1 Real Rewards</p>
+                    <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider mt-1">1 $Real = 20 power score</p>
                   </div>
 
                   {/* 60/40 split cards */}
@@ -1078,7 +1095,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                           <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
                           <span className="text-sm text-rb-muted/70 font-mono">$Real Reward</span>
                         </div>
-                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">${split.freePlay.dollars.toLocaleString()}</span>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{powerScoreConvertedToRealReward.toLocaleString()} ~ ${split.freePlay.dollars.toLocaleString()}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">

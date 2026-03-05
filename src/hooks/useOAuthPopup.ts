@@ -20,6 +20,11 @@ export interface OAuthResult {
 
 type OAuthCallback = (result: OAuthResult) => void;
 
+interface OAuthOpenOptions {
+  gracePeriodMs?: number;
+  postCloseWaitMs?: number;
+}
+
 const LS_KEY = 'oauth_result';
 
 function readOAuthResult(): OAuthResult | null {
@@ -108,7 +113,7 @@ export function useOAuthPopup() {
     return () => window.removeEventListener('message', handleMessage);
   }, [fireCallback]);
 
-  const openOAuth = useCallback((provider: 'twitter' | 'discord', onResult: OAuthCallback) => {
+  const openOAuth = useCallback((provider: 'twitter' | 'discord', onResult: OAuthCallback, options?: OAuthOpenOptions) => {
     callbackRef.current = onResult;
     firedRef.current = false;
     firedSuccessRef.current = false;
@@ -143,9 +148,9 @@ export function useOAuthPopup() {
     const openedAt = Date.now();
     // Grace period: don't check popup.closed for 30s (OAuth flow navigates
     // through twitter.com/discord.com → cross-origin → closed reads as true)
-    const GRACE_PERIOD_MS = 30_000;
+    const GRACE_PERIOD_MS = options?.gracePeriodMs ?? 30_000;
     // After grace period, if popup is genuinely closed, wait 5 more seconds for postMessage
-    const POST_CLOSE_WAIT_MS = 5_000;
+    const POST_CLOSE_WAIT_MS = options?.postCloseWaitMs ?? 5_000;
 
     let genuinelyClosed = false;
     let closedAt = 0;

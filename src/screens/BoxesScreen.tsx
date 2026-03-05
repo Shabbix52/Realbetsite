@@ -357,6 +357,24 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
     // ── Twitter / X ──
     if (task === 'follow') {
+      const startFollowFlow = () => {
+        const targetUsername = 'Realbet'; // matches TWITTER_TARGET_USERNAME
+        const followUrl = `https://twitter.com/intent/follow?screen_name=${targetUsername}`;
+        // Use anchor click as primary method — more reliable than window.open on mobile Safari
+        const a = document.createElement('a');
+        a.href = followUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setFollowVerifying(true);
+        setTimeout(() => {
+          setFollowVerifying(false);
+          setTasks(p => ({ ...p, follow: true }));
+        }, 3000);
+      };
+
       if (!twitterVerified) {
         // Step 1: Authenticate with X
         setTaskLoading('follow');
@@ -416,27 +434,14 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                   .catch(() => {});
               }
             }
-            // After OAuth success: DON'T mark done yet. Open follow intent + countdown.
+            // OAuth succeeded — immediately continue to follow intent in the same click flow.
+            startFollowFlow();
           }
           setTaskLoading(null);
         });
       } else if (!tasks.follow) {
-        // Already verified — Step 2: Open follow intent and show spinner
-        const targetUsername = 'Realbet'; // matches TWITTER_TARGET_USERNAME
-        const followUrl = `https://twitter.com/intent/follow?screen_name=${targetUsername}`;
-        // Use anchor click as primary method — more reliable than window.open on mobile Safari
-        const a = document.createElement('a');
-        a.href = followUrl;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setFollowVerifying(true);
-        setTimeout(() => {
-          setFollowVerifying(false);
-          setTasks(p => ({ ...p, follow: true }));
-        }, 3000);
+        // Already verified — open follow intent and verify.
+        startFollowFlow();
       }
       return;
     }
@@ -481,7 +486,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             }
           }
           setTaskLoading(null);
-        });
+        }, { gracePeriodMs: 10_000, postCloseWaitMs: 2_000 });
       } else if (!tasks.discord && discordUserId) {
         // Already verified — re-check membership
         setTaskLoading('discord');
