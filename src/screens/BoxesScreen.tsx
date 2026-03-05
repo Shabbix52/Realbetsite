@@ -199,7 +199,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // restored correctly when loading from DB on a new device.
         if (data.boxes && data.totalPoints) {
           const boxSum = data.boxes.reduce((s: number, b: any) => s + (b.points || 0), 0);
-          const inferredBonus = Math.max(0, data.totalPoints - boxSum);
+          const refBonus = data.referralBonusPoints || 0;
+          const inferredBonus = Math.max(0, data.totalPoints - boxSum - refBonus);
           const discordBonus = data.discordId ? 500 : 0;
           if ((inferredBonus - discordBonus) >= 500) setTasks(p => ({ ...p, follow: true }));
         }
@@ -406,7 +407,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     // Infer tasks.follow from total_points vs box sum
                     if (data.boxes && data.totalPoints) {
                       const boxSum = data.boxes.reduce((s: number, b: any) => s + (b.points || 0), 0);
-                      const inferredBonus = Math.max(0, data.totalPoints - boxSum);
+                      const refBonus = data.referralBonusPoints || 0;
+                      const inferredBonus = Math.max(0, data.totalPoints - boxSum - refBonus);
                       const discordBonus = data.discordId ? 500 : 0;
                       if ((inferredBonus - discordBonus) >= 500) setTasks(p => ({ ...p, follow: true }));
                     }

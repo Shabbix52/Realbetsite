@@ -16,7 +16,7 @@ export interface FollowerTier {
 }
 
 export const FOLLOWER_TIERS: FollowerTier[] = [
-  { minFollowers: 0,      maxFollowers: 1000,    label: '<1K',       goldPointsMin: 0,     goldPointsMax: 1000,  maxPowerScore: 2100,  maxFreePlay: 63.00,    maxRealPoints: 840 },
+  { minFollowers: 0,      maxFollowers: 1000,    label: '<1K',       goldPointsMin: 1,     goldPointsMax: 1000,  maxPowerScore: 2100,  maxFreePlay: 63.00,    maxRealPoints: 840 },
   { minFollowers: 1000,   maxFollowers: 2000,    label: '1K–2K',     goldPointsMin: 1001,  goldPointsMax: 1800,  maxPowerScore: 2900,  maxFreePlay: 87.00,    maxRealPoints: 1160 },
   { minFollowers: 2000,   maxFollowers: 3000,    label: '2K–3K',     goldPointsMin: 1801,  goldPointsMax: 2400,  maxPowerScore: 3500,  maxFreePlay: 105.00,   maxRealPoints: 1400 },
   { minFollowers: 3000,   maxFollowers: 5000,    label: '3K–5K',     goldPointsMin: 2401,  goldPointsMax: 3000,  maxPowerScore: 4100,  maxFreePlay: 123.00,   maxRealPoints: 1640 },

@@ -364,6 +364,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
 
   // Share modal state
   const [showShareModal, setShowShareModal] = useState(false);
+  const [pendingTweetUrl, setPendingTweetUrl] = useState('');
   const [shareUrlInput, setShareUrlInput] = useState('');
   const [shareUrlError, setShareUrlError] = useState('');
 
@@ -550,24 +551,20 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
     const text = encodeURIComponent(
       `Season 1 Allocation: $${allocationDollars.toLocaleString()}\nPower Score: ${powerScore.toLocaleString()}\n\nThe grind paid off.\n\n@RealBet Season 1 rewards are live and the house is officially open.\n\nClaim your rewards 👇\n${claimLink}${joinLine}`,
     );
-    // Open tweet window
-    const a = document.createElement('a');
-    a.href = `https://twitter.com/intent/tweet?text=${text}`;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${text}`;
+    // Open tweet window — window.open returns null if popups are blocked
+    const opened = window.open(tweetUrl, '_blank', 'noopener,noreferrer');
+    setPendingTweetUrl(tweetUrl);
     setShareLoading(false);
     // Show modal to collect post URL after a short delay
-    setTimeout(() => setShowShareModal(true), 1500);
+    setTimeout(() => setShowShareModal(true), opened ? 1500 : 100);
   };
 
   const handleShareConfirm = async () => {
     const url = shareUrlInput.trim();
     // Must be a full tweet URL: https://x.com/username/status/1234567890
     const tweetUrlRegex = /^https?:\/\/(twitter|x)\.com\/[A-Za-z0-9_]{1,50}\/status\/[0-9]{5,25}(\?.*)?$/;
-    if (url && !tweetUrlRegex.test(url)) {
+    if (!url || !tweetUrlRegex.test(url)) {
       setShareUrlError('Please enter a valid post URL, e.g. https://x.com/yourname/status/...');
       return;
     }
@@ -688,7 +685,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center px-4"
             style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
-            onClick={(e) => { if (e.target === e.currentTarget) { setShowShareModal(false); setShared(true); if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch {} } } }}
+            onClick={(e) => e.stopPropagation()}
           >
             <motion.div
               key="share-modal"
@@ -699,18 +696,22 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               className="w-full max-w-md glass-panel rounded-2xl p-6 space-y-5 border border-rb-border"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-white font-bold text-lg font-display tracking-wide">Nice post! 🎉</h3>
-                  <p className="text-rb-muted/60 text-sm mt-1">Paste your X post link below so we can verify it. This is optional — you can skip if you prefer.</p>
-                </div>
-                <button
-                  onClick={() => { setShowShareModal(false); setShared(true); if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch {} } }}
-                  className="text-rb-muted/40 hover:text-white transition-colors flex-shrink-0 mt-0.5"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
+              <div>
+                <h3 className="text-white font-bold text-lg font-display tracking-wide">Nice post! 🎉</h3>
+                <p className="text-rb-muted/60 text-sm mt-1">Paste your X post link below to verify your share. This is required to activate your rewards.</p>
               </div>
+
+              {pendingTweetUrl && (
+                <a
+                  href={pendingTweetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-[#1DA1F2]/40 text-[#1DA1F2] text-sm font-bold tracking-wider hover:bg-[#1DA1F2]/10 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  OPEN TWITTER TO POST
+                </a>
+              )}
 
               <div className="space-y-2">
                 <input
@@ -727,15 +728,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setShowShareModal(false); setShared(true); if (sharedKey) { try { localStorage.setItem(sharedKey, '1'); } catch {} } }}
-                  className="flex-1 py-3 rounded-xl border border-rb-border text-rb-muted/50 text-sm font-bold tracking-wider hover:text-white hover:border-rb-border/70 transition-colors"
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  SKIP
-                </button>
-                <button
                   onClick={handleShareConfirm}
-                  className="flex-1 py-3 rounded-xl bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/30 text-sm font-bold tracking-wider transition-colors"
+                  className="w-full py-3 rounded-xl bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/30 text-sm font-bold tracking-wider transition-colors"
                   style={{ touchAction: 'manipulation' }}
                 >
                   CONFIRM
@@ -826,7 +820,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               style={{ touchAction: 'manipulation', boxShadow: shared ? undefined : '0 4px 25px hsla(355, 83%, 41%, 0.4)', background: (!shared && !shareLoading) ? 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)' : undefined }}
               className={`w-full flex items-center justify-center gap-2.5 py-4 rounded font-bold text-2xl tracking-widest transition-all active:scale-[0.98] font-display ${
                 shared
-                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  ? 'bg-white/10 text-white/40 border border-white/10'
                   : shareLoading
                     ? 'text-white cursor-wait'
                     : 'text-[#F2F2F2]'
