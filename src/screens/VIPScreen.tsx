@@ -917,7 +917,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                 </button>
               )}
 
-              {referredBy && (
+              {referredBy && referralReferredBonus > 0 && (
                 <p className="text-[10px] text-green-400/60 font-label tracking-wider">
                   ✓ Referred by @{referredBy} — +{referralReferredBonus} power pts
                 </p>

@@ -1267,12 +1267,14 @@ app.get('/auth/leaderboard', async (req, res) => {
               RANK() OVER (ORDER BY total_points DESC) AS rank
        FROM scores
        WHERE total_points > 0
+         AND (bronze_points + silver_points + gold_points) > 0
+         AND username IS NOT NULL
        ORDER BY total_points DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
-    const countResult = await pool.query('SELECT COUNT(*) FROM scores WHERE total_points > 0');
+    const countResult = await pool.query('SELECT COUNT(*) FROM scores WHERE total_points > 0 AND (bronze_points + silver_points + gold_points) > 0 AND username IS NOT NULL');
     const totalUsers = parseInt(countResult.rows[0].count);
 
     const data = {
