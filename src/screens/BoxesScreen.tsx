@@ -166,6 +166,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   const { openOAuth } = useOAuthPopup();
 
+  // Refs for each box card — used to scroll it into view after reveal
+  const boxRefs = useRef<(HTMLDivElement | null)[]>([]);
+
   // On mount: if twitterId is already set (from saved state or mobile OAuth redirect return),
   // sync scores + Discord linkage from DB — the OAuth callback won't fire in these cases.
   useEffect(() => {
@@ -303,6 +306,11 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         saveScoresToDB(updated);
         return updated;
       });
+
+      // Scroll the opened box into view so the reveal is clearly visible
+      setTimeout(() => {
+        boxRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
 
       // After silver is revealed, transition to tasks screen
       if (box.type === 'silver') {
@@ -568,6 +576,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 {boxes.slice(0, 2).map((box, i) => (
                   <motion.div
                     key={box.type}
+                    ref={el => { boxRefs.current[i] = el; }}
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1 + 0.2 }}
@@ -604,21 +613,21 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     <div className="mb-3 sm:mb-4 relative z-[1]">
                       {box.state === 'locked' ? (
                         <div className="relative">
-                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-24 h-24 sm:w-32 sm:h-32 object-contain opacity-30 grayscale" />
+                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain opacity-30 grayscale" />
                           <LockIcon className="w-5 h-5 text-white/40 absolute bottom-0 right-0" />
                         </div>
                       ) : box.state === 'opening' ? (
-                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-24 h-24 sm:w-32 sm:h-32 object-contain animate-bounce" />
+                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain animate-bounce" />
                       ) : box.state === 'revealed' ? (
                         <motion.div
                           initial={{ scale: 0.5 }}
                           animate={{ scale: 1 }}
                           transition={{ type: 'spring', damping: 12 }}
                         >
-                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-20 h-20 sm:w-28 sm:h-28 object-contain opacity-60" />
+                          <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain" />
                         </motion.div>
                       ) : (
-                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-24 h-24 sm:w-32 sm:h-32 object-contain" />
+                        <img src={BOX_IMAGES[box.type]} alt={`${box.type} box`} className="w-36 h-36 sm:w-48 sm:h-48 object-contain" />
                       )}
                     </div>
 

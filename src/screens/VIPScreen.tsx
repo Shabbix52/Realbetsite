@@ -539,11 +539,14 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
       // Fall through — still open tweet with text only
     }
 
-    const refLine = referralCode
-      ? `\n\nJoin with my link: ${import.meta.env.VITE_CLIENT_URL || window.location.origin}?ref=${referralCode}`
+    const baseUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
+    const refSuffix = referralCode ? `?ref=${referralCode}` : '';
+    const claimLink = shareLink + (shareLink.includes('?') ? `&ref=${referralCode}` : refSuffix);
+    const joinLine = referralCode
+      ? `\nIf you're not in yet, start here:\n${baseUrl}${refSuffix}`
       : '';
     const text = encodeURIComponent(
-      `SEASON 1 ALLOCATION $${allocationDollars.toLocaleString()}\n\n${powerScore.toLocaleString()} Power Score\n\n@RealBet | The House is open.\n\n${shareLink}${refLine}\n\n#RealBetSeason1`,
+      `Season 1 Allocation: $${allocationDollars.toLocaleString()}\nPower Score: ${powerScore.toLocaleString()}\n\nThe grind paid off.\n\n@RealBet Season 1 rewards are live and the house is officially open.\n\nClaim your rewards 👇\n${claimLink}${joinLine}`,
     );
     // Open tweet window
     const a = document.createElement('a');
