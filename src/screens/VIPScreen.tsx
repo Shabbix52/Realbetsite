@@ -97,12 +97,19 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
     captureImage: async () => {
       try {
         const SCALE = 2;
-        const W = 589 * SCALE;
-        const H = 357 * SCALE;
+        // Use standard OG image size (1200×628) so X/Twitter doesn't crop
+        const OG_W = 1200 * SCALE;
+        const OG_H = 628 * SCALE;
+        // Card dimensions scaled to fit the OG canvas height
+        const CARD_ASPECT = 589 / 357;
+        const cardH = OG_H;
+        const cardW = Math.round(cardH * CARD_ASPECT);
+        const cardX = Math.round((OG_W - cardW) / 2);
+        const cardY = 0;
 
         const canvas = document.createElement('canvas');
-        canvas.width = W;
-        canvas.height = H;
+        canvas.width = OG_W;
+        canvas.height = OG_H;
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
 
@@ -122,15 +129,19 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             img.src = src;
           });
 
-        // 1. Draw card template background
-        const bg = await loadImg('/VIPcard.png', false);
-        ctx.drawImage(bg, 0, 0, W, H);
+        // 1. Fill background with dark color (visible as side bars on X)
+        ctx.fillStyle = '#050508';
+        ctx.fillRect(0, 0, OG_W, OG_H);
 
-        // 2. Draw avatar in a circle clip
+        // 2. Draw card template centered
+        const bg = await loadImg('/VIPcard.png', false);
+        ctx.drawImage(bg, cardX, cardY, cardW, cardH);
+
+        // 3. Draw avatar in a circle clip (positions relative to card)
         try {
           const avatar = await loadImg(userData.pfp);
-          const ax = 0.0793 * W, ay = 0.0972 * H;
-          const aw = 0.1789 * W, ah = 0.2952 * H;
+          const ax = cardX + 0.0793 * cardW, ay = cardY + 0.0972 * cardH;
+          const aw = 0.1789 * cardW, ah = 0.2952 * cardH;
           const radius = Math.min(aw, ah) / 2;
           ctx.save();
           ctx.beginPath();
@@ -148,15 +159,15 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#FFFFFF';
 
-        // 3. Draw username (Space Mono bold)
-        const uFontSize = Math.round(0.1118 * H * 0.55);
+        // 4. Draw username (Space Mono bold) — relative to card
+        const uFontSize = Math.round(0.1118 * cardH * 0.55);
         ctx.font = `bold ${uFontSize}px "Space Mono", monospace`;
-        const ux = 0.2808 * W, uy = 0.3451 * H;
-        const uw = 0.4642 * W, uh = 0.1118 * H;
+        const ux = cardX + 0.2808 * cardW, uy = cardY + 0.3451 * cardH;
+        const uw = 0.4642 * cardW, uh = 0.1118 * cardH;
         ctx.fillText(`@${userData.username}`, ux + uw / 2, uy + uh / 2, uw);
 
-        // 4. Draw dollar + points values (Bebas Neue bold, with glow)
-        const vFontSize = Math.round(0.1246 * H * 0.8);
+        // 5. Draw dollar + points values (Bebas Neue bold, with glow)
+        const vFontSize = Math.round(0.1246 * cardH * 0.8);
         ctx.font = `bold ${vFontSize}px "Bebas Neue", sans-serif`;
         ctx.shadowColor = 'rgba(255,255,255,0.4)';
         ctx.shadowBlur = 12;
@@ -164,13 +175,13 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
         ctx.shadowOffsetY = 2;
 
         // $REAL Reward (bottom-left)
-        const dx = 0.190 * W, dy = 0.6216 * H;
-        const dw = 0.2369 * W, dh = 0.1246 * H;
+        const dx = cardX + 0.190 * cardW, dy = cardY + 0.6216 * cardH;
+        const dw = 0.2369 * cardW, dh = 0.1246 * cardH;
         ctx.fillText(`$${freePlayDollars.toLocaleString()}`, dx + dw / 2, dy + dh / 2, dw);
 
         // Real Points (bottom-right)
-        const px = 0.5762 * W, py = 0.6216 * H;
-        const pw = 0.2369 * W, ph = 0.1246 * H;
+        const px = cardX + 0.5762 * cardW, py = cardY + 0.6216 * cardH;
+        const pw = 0.2369 * cardW, ph = 0.1246 * cardH;
         ctx.fillText(realPoints.toLocaleString(), px + pw / 2, py + ph / 2, pw);
 
         // Reset shadow
