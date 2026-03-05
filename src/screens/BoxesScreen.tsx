@@ -858,7 +858,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                         <div className="mt-1">
                           <p className="text-xs text-red-400/80">You're not in the server yet!</p>
                           <a
-                            href="https://discord.gg/realbet"
+                            href="https://discord.gg/realbetio"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-purple-400 underline hover:text-purple-300"
