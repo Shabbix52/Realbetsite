@@ -25,6 +25,7 @@ interface AdminStats {
 }
 
 interface AdminUser {
+  bonusPoints: number;
   twitterId: string;
   username: string;
   followersCount: number;
@@ -512,6 +513,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                           <th className="text-right py-3 px-4">Bronze</th>
                           <th className="text-right py-3 px-4">Silver</th>
                           <th className="text-right py-3 px-4">Gold</th>
+                          <th className="text-right py-3 px-4">Bonus</th>
                           <th className="text-right py-3 px-4">Power Score</th>
                           <th className="text-right py-3 px-4">REAL Pts</th>
                           <th className="text-right py-3 px-4">Cash $</th>
@@ -530,6 +532,7 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                             <td className="py-2.5 px-4 text-right font-label text-[#C8956C]/70">{user.bronzePoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-[#9CA0A8]/70">{user.silverPoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-brand-gold/70">{user.goldPoints.toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-blue-300/80">{user.bonusPoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-white font-bold">{user.totalPoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-brand-gold">{user.realPoints.toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-right font-label text-brand-red">${user.cashExposure.toLocaleString()}</td>

@@ -255,6 +255,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const openBox = useCallback(async (index: number) => {
     const box = boxes[index];
     if (box.state !== 'ready') return;
+    const currentTaskBonus = (tasks.follow ? TASK_BONUS : 0) + (tasks.discord ? TASK_BONUS : 0);
 
     // Start shake animation immediately
     setBoxes(prev => prev.map((b, i) => i === index ? { ...b, state: 'opening' } : b));
@@ -268,7 +269,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     if (twitterId) {
       try {
         const rollRes = await fetch(
-          getApiUrl(`/auth/scores/roll?type=${box.type}&twitterId=${encodeURIComponent(twitterId)}&followersCount=${followersCount}`)
+          getApiUrl(`/auth/scores/roll?type=${box.type}&twitterId=${encodeURIComponent(twitterId)}&followersCount=${followersCount}&taskBonus=${currentTaskBonus}`)
         );
         if (rollRes.ok) {
           const rollData = await rollRes.json();
@@ -296,10 +297,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           const basePoints = boxes
             .filter(b => b.type !== 'gold')
             .reduce((sum, b) => sum + (b.points || 0), 0);
-          const remainingGoldCap = Math.max(1, tier.maxPowerScore - basePoints);
-          const cappedMin = Math.max(1, Math.min(tier.goldPointsMin, remainingGoldCap));
-          const cappedMax = Math.max(cappedMin, Math.min(tier.goldPointsMax, remainingGoldCap));
-          points = randomInRange(cappedMin, cappedMax);
+          const remainingGoldCap = Math.max(1, tier.maxPowerScore - basePoints - currentTaskBonus);
+          const cappedMax = Math.max(1, Math.min(70_000, remainingGoldCap));
+          points = randomInRange(1, cappedMax);
         } else {
           const [min, max] = BOX_POINTS[box.type];
           points = randomInRange(min, max);
@@ -342,7 +342,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         }, 500);
       }
     }, 1300);
-  }, [boxes, twitterId, followersCount, saveScoresToDB]);
+  }, [boxes, twitterId, followersCount, saveScoresToDB, tasks]);
 
   // Watch tasks state — follow is required; discord is optional bonus
   // Gold unlocks as soon as follow is done

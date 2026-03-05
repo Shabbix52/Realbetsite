@@ -8,6 +8,7 @@ import pg from 'pg';
 import { createClient } from 'redis';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '..', '.env') });
@@ -71,6 +72,8 @@ app.post('/auth/scores', generalLimiter);
 app.use('/auth/twitter', twitterAuthLimiter);
 app.use('/auth/discord', discordAuthLimiter);
 app.use('/admin', adminLimiter);
+const referralValidateLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
+app.use('/auth/referral/validate', referralValidateLimiter);
 
 // ─────────────────────────────────────────────
 //  DATABASE SETUP
@@ -560,33 +563,15 @@ app.post('/auth/discord/link', async (req, res) => {
 const SCORE_SECRET = process.env.SCORE_SECRET || process.env.ADMIN_KEY;
 const TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-// Gold point ranges per follower tier (mirrors tierConfig.ts)
-const GOLD_TIERS_SERVER = [
-  { min: 0,      max: 1000,    ptMin: 1,     ptMax: 1000,  maxFreePlay: 63.00  },
-  { min: 1000,   max: 2000,    ptMin: 1001,  ptMax: 1800,  maxFreePlay: 87.00  },
-  { min: 2000,   max: 3000,    ptMin: 1801,  ptMax: 2400,  maxFreePlay: 105.00 },
-  { min: 3000,   max: 5000,    ptMin: 2401,  ptMax: 3000,  maxFreePlay: 123.00 },
-  { min: 5000,   max: 7500,    ptMin: 3001,  ptMax: 4500,  maxFreePlay: 168.00 },
-  { min: 7500,   max: 10000,   ptMin: 4501,  ptMax: 6000,  maxFreePlay: 213.00 },
-  { min: 10000,  max: 15000,   ptMin: 6001,  ptMax: 8500,  maxFreePlay: 288.00 },
-  { min: 15000,  max: 20000,   ptMin: 8501,  ptMax: 11000, maxFreePlay: 363.00 },
-  { min: 20000,  max: 25000,   ptMin: 11001, ptMax: 13000, maxFreePlay: 423.00 },
-  { min: 25000,  max: 30000,   ptMin: 13001, ptMax: 14500, maxFreePlay: 468.00 },
-  { min: 30000,  max: 35000,   ptMin: 14501, ptMax: 16000, maxFreePlay: 513.00 },
-  { min: 35000,  max: 40000,   ptMin: 16001, ptMax: 18000, maxFreePlay: 573.00 },
-  { min: 40000,  max: 45000,   ptMin: 18001, ptMax: 20000, maxFreePlay: 633.00 },
-  { min: 45000,  max: 50000,   ptMin: 20001, ptMax: 22000, maxFreePlay: 693.00 },
-  { min: 50000,  max: 60000,   ptMin: 22001, ptMax: 25000, maxFreePlay: 783.00 },
-  { min: 60000,  max: 70000,   ptMin: 25001, ptMax: 28000, maxFreePlay: 873.00 },
-  { min: 70000,  max: 80000,   ptMin: 28001, ptMax: 31000, maxFreePlay: 963.00 },
-  { min: 80000,  max: 90000,   ptMin: 31001, ptMax: 34000, maxFreePlay: 1053.00 },
-  { min: 90000,  max: 100000,  ptMin: 34001, ptMax: 37000, maxFreePlay: 1143.00 },
-  { min: 100000, max: 125000,  ptMin: 37001, ptMax: 42000, maxFreePlay: 1293.00 },
-  { min: 125000, max: 150000,  ptMin: 42001, ptMax: 47000, maxFreePlay: 1443.00 },
-  { min: 150000, max: 200000,  ptMin: 47001, ptMax: 53000, maxFreePlay: 1623.00 },
-  { min: 200000, max: 250000,  ptMin: 53001, ptMax: 60000, maxFreePlay: 1833.00 },
-  { min: 250000, max: Infinity, ptMin: 60001, ptMax: 70000, maxFreePlay: 2133.00 },
-];
+// Gold point ranges per follower tier — single source of truth in shared/tierData.json
+const _rawTiers = JSON.parse(readFileSync(join(__dirname, '..', 'shared', 'tierData.json'), 'utf8'));
+const GOLD_TIERS_SERVER = _rawTiers.map(t => ({
+  min: t.minFollowers,
+  max: t.maxFollowers === 999999999 ? Infinity : t.maxFollowers,
+  ptMin: t.goldPointsMin,
+  ptMax: t.goldPointsMax,
+  maxFreePlay: t.maxFreePlay,
+}));
 
 /** Calculate the $REAL freeplay amount for a user (60% of power score / 20, capped per tier) */
 function calculateFreePlayDollars(totalPoints, followersCount) {
@@ -670,6 +655,8 @@ app.get('/auth/scores/roll', async (req, res) => {
   if (type === 'gold') {
     try {
       const fc = parseInt(followersCount, 10) || 0;
+      const rawTaskBonus = parseInt(req.query.taskBonus, 10) || 0;
+      const taskBonus = Math.max(0, Math.min(MAX_TASK_BONUS, rawTaskBonus));
       const tier = getGoldTier(fc);
       const result = await pool.query(
         'SELECT bronze_points, silver_points FROM scores WHERE twitter_id = $1',
@@ -681,10 +668,9 @@ app.get('/auth/scores/roll', async (req, res) => {
 
       // Keep power score under the tier's effective cap (derived from maxFreePlay).
       const tierMaxPowerScore = Math.floor((tier.maxFreePlay * 20) / 0.6);
-      const remainingGoldCap = Math.max(1, tierMaxPowerScore - basePoints);
-      const cappedMin = Math.max(1, Math.min(tier.ptMin, remainingGoldCap));
-      const cappedMax = Math.max(cappedMin, Math.min(tier.ptMax, remainingGoldCap));
-      const points = srvRandInRange(cappedMin, cappedMax);
+      const remainingGoldCap = Math.max(1, tierMaxPowerScore - basePoints - taskBonus);
+      const cappedMax = Math.max(1, Math.min(70_000, remainingGoldCap));
+      const points = srvRandInRange(1, cappedMax);
       const tierName = TIER_NAMES_SERVER.gold[crypto.randomInt(TIER_NAMES_SERVER.gold.length)];
 
       const issuedAt = Date.now();
@@ -1017,13 +1003,13 @@ async function handleConnectCallback(req, res) {
       const realResult = await grantHubReal(effectiveTwitterHandle, freePlayDollars, { source: 'season1_freeplay' });
       console.log(`Hub $REAL grant for @${effectiveTwitterHandle}: ${realResult.status} ($${freePlayDollars})`, realResult.data);
       if (!realResult.ok) {
-        console.error('Hub $REAL API error (non-blocking):', realResult.data);
-      } else {
-        realBonusId = realResult.data.bonus_id || null;
+        console.error('Hub $REAL API error:', realResult.data);
+        return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=real_grant_failed`);
       }
+      realBonusId = realResult.data.bonus_id || null;
     }
 
-    // Mark as claimed
+    // Mark as claimed — only reached if ALL grants succeeded
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2, hub_real_bonus_id = $3, claim_real_amount = $4 WHERE twitter_id = $5',
       [hubResult.data.bonus_id || null, realPoints, realBonusId, freePlayDollars, targetUid]
@@ -1086,12 +1072,13 @@ app.post('/auth/claim', async (req, res) => {
       const realResult = await grantHubReal(row.username, freePlayDollars, { source: 'season1_freeplay' });
       console.log(`Hub $REAL claim for @${row.username}: ${realResult.status} ($${freePlayDollars})`, realResult.data);
       if (!realResult.ok) {
-        console.error('Hub $REAL API error on direct claim (non-blocking):', realResult.data);
-      } else {
-        realBonusId = realResult.data.bonus_id || null;
+        console.error('Hub $REAL API error on direct claim:', realResult.data);
+        return res.status(502).json({ error: 'Failed to grant $REAL bonus', details: realResult.data.error || realResult.data });
       }
+      realBonusId = realResult.data.bonus_id || null;
     }
 
+    // Mark as claimed — only reached if ALL grants succeeded
     await pool.query(
       'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2, hub_real_bonus_id = $3, claim_real_amount = $4 WHERE twitter_id = $5',
       [hubResult.data.bonus_id || null, realPoints, realBonusId, freePlayDollars, twitterId]
@@ -1308,20 +1295,58 @@ app.get('/auth/leaderboard', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT username, followers_count, total_points,
-              bronze_points, silver_points, gold_points,
-              FLOOR(total_points * 0.4) AS real_points,
-              RANK() OVER (ORDER BY total_points DESC) AS rank
-       FROM scores
-       WHERE total_points > 0
-         AND (bronze_points + silver_points + gold_points) > 0
-         AND username IS NOT NULL
-       ORDER BY total_points DESC
+      `WITH scored AS (
+         SELECT username,
+                followers_count,
+                bronze_points,
+                silver_points,
+                gold_points,
+                (COALESCE(bronze_points, 0) + COALESCE(silver_points, 0) + COALESCE(gold_points, 0)) AS box_points,
+                COALESCE(total_points, 0) AS stored_total,
+                COALESCE(referral_bonus_points, 0) AS ref_bonus,
+                CASE
+                  WHEN COALESCE(total_points, 0) - (COALESCE(bronze_points, 0) + COALESCE(silver_points, 0) + COALESCE(gold_points, 0)) >= 1000 THEN 1000
+                  WHEN COALESCE(total_points, 0) - (COALESCE(bronze_points, 0) + COALESCE(silver_points, 0) + COALESCE(gold_points, 0)) >= 500 THEN 500
+                  ELSE 0
+                END AS inferred_task_bonus
+         FROM scores
+         WHERE username IS NOT NULL
+       )
+       SELECT username,
+              followers_count,
+              bronze_points,
+              silver_points,
+              gold_points,
+              ref_bonus AS referral_bonus_points,
+              (box_points + inferred_task_bonus + ref_bonus) AS total_points,
+              FLOOR((box_points + inferred_task_bonus + ref_bonus) * 0.4) AS real_points,
+              RANK() OVER (ORDER BY (box_points + inferred_task_bonus + ref_bonus) DESC) AS rank
+       FROM scored
+       WHERE box_points > 0
+         AND (box_points + inferred_task_bonus) > 0
+       ORDER BY (box_points + inferred_task_bonus + ref_bonus) DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
-    const countResult = await pool.query('SELECT COUNT(*) FROM scores WHERE total_points > 0 AND (bronze_points + silver_points + gold_points) > 0 AND username IS NOT NULL');
+    const countResult = await pool.query(
+      `WITH scored AS (
+         SELECT (COALESCE(bronze_points, 0) + COALESCE(silver_points, 0) + COALESCE(gold_points, 0)) AS box_points,
+                COALESCE(referral_bonus_points, 0) AS ref_bonus,
+                CASE
+                  WHEN COALESCE(total_points, 0) - (COALESCE(bronze_points, 0) + COALESCE(silver_points, 0) + COALESCE(gold_points, 0)) >= 1000 THEN 1000
+                  WHEN COALESCE(total_points, 0) - (COALESCE(bronze_points, 0) + COALESCE(silver_points, 0) + COALESCE(gold_points, 0)) >= 500 THEN 500
+                  ELSE 0
+                END AS inferred_task_bonus,
+                username
+         FROM scores
+         WHERE username IS NOT NULL
+       )
+       SELECT COUNT(*)
+       FROM scored
+       WHERE box_points > 0
+         AND (box_points + inferred_task_bonus) > 0`
+    );
     const totalUsers = parseInt(countResult.rows[0].count);
 
     const data = {
@@ -1707,6 +1732,13 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
 
     res.json({
       users: result.rows.map(r => ({
+        bonusPoints: (() => {
+          const boxSum = (r.bronze_points || 0) + (r.silver_points || 0) + (r.gold_points || 0);
+          const delta = (r.total_points || 0) - boxSum;
+          if (delta >= 1000) return 1000;
+          if (delta >= 500) return 500;
+          return 0;
+        })(),
         twitterId: r.twitter_id,
         username: r.username,
         followersCount: r.followers_count || 0,
