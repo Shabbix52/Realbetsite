@@ -281,6 +281,26 @@ async function grantHubReal(twitterHandle, realDollars, metadata = {}) {
   return grantHubBonus(twitterHandle, realDollars, 'real', metadata);
 }
 
+/**
+ * Serialize claims per user so duplicate requests can't grant twice.
+ * Uses a transaction-scoped advisory lock keyed by twitterId.
+ */
+async function withClaimLock(twitterId, work) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`claim:${twitterId}`]);
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ─────────────────────────────────────────────
 //  TWITTER / X  — OAuth 2.0 with PKCE
 // ─────────────────────────────────────────────
@@ -1002,68 +1022,74 @@ async function handleConnectCallback(req, res) {
   }
 
   try {
-    // Mark user as linked
-    await pool.query('UPDATE scores SET account_linked = true WHERE twitter_id = $1', [targetUid]);
+    const outcome = await withClaimLock(targetUid, async (client) => {
+      // Mark user as linked
+      await client.query('UPDATE scores SET account_linked = true WHERE twitter_id = $1', [targetUid]);
 
-    // Get user's scores to calculate allocation
-    const scoreResult = await pool.query('SELECT * FROM scores WHERE twitter_id = $1', [targetUid]);
-    if (scoreResult.rows.length === 0) {
-      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_not_found`);
-    }
-
-    const row = scoreResult.rows[0];
-    if (row.username && row.username.toLowerCase() !== effectiveTwitterHandle.toLowerCase()) {
-      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=user_mismatch`);
-    }
-    if (row.claimed_at) {
-      return res.redirect(`${CLIENT_URL}?claim_result=already_claimed`);
-    }
-
-    const totalPoints = row.total_points;
-    const followersCount = parseInt(row.followers_count, 10) || 0;
-    const realPoints = Math.floor(totalPoints * 0.4);
-    const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
-
-    if (!BONUS_API_SECRET) {
-      console.error('BONUS_API_SECRET not configured');
-      return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=config_error`);
-    }
-
-    // Grant hub points (40% of power score — referral bonus is sent separately at conversion time)
-    let hubResult = { ok: true, data: {} };
-    if (realPoints > 0) {
-      hubResult = await grantHubPoints(effectiveTwitterHandle, realPoints);
-      console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status} (${realPoints} pts, ${totalPoints} total)`, hubResult.data);
-
-      if (!hubResult.ok) {
-        console.error('Hub API error:', hubResult.data);
-        return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=hub_error`);
+      // Get user's scores to calculate allocation
+      const scoreResult = await client.query('SELECT * FROM scores WHERE twitter_id = $1 FOR UPDATE', [targetUid]);
+      if (scoreResult.rows.length === 0) {
+        return { redirect: `${CLIENT_URL}?claim_result=error&claim_msg=user_not_found` };
       }
-    }
 
-    // Grant $REAL freeplay (60% of power score, capped per tier)
-    let realBonusId = null;
-    if (freePlayDollars > 0) {
-      const realResult = await grantHubReal(effectiveTwitterHandle, freePlayDollars, { source: 'season1_freeplay' });
-      console.log(`Hub $REAL grant for @${effectiveTwitterHandle}: ${realResult.status} ($${freePlayDollars})`, realResult.data);
-      if (!realResult.ok) {
-        console.error('Hub $REAL API error:', realResult.data);
-        return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=real_grant_failed`);
+      const row = scoreResult.rows[0];
+      if (row.username && row.username.toLowerCase() !== effectiveTwitterHandle.toLowerCase()) {
+        return { redirect: `${CLIENT_URL}?claim_result=error&claim_msg=user_mismatch` };
       }
-      realBonusId = realResult.data.bonus_id || null;
+      if (row.claimed_at) {
+        return { redirect: `${CLIENT_URL}?claim_result=already_claimed` };
+      }
+
+      const totalPoints = row.total_points;
+      const followersCount = parseInt(row.followers_count, 10) || 0;
+      const realPoints = Math.floor(totalPoints * 0.4);
+      const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
+
+      if (!BONUS_API_SECRET) {
+        console.error('BONUS_API_SECRET not configured');
+        return { redirect: `${CLIENT_URL}?claim_result=error&claim_msg=config_error` };
+      }
+
+      // Grant hub points (40% of power score — referral bonus is sent separately at conversion time)
+      let hubResult = { ok: true, data: {} };
+      if (realPoints > 0) {
+        hubResult = await grantHubPoints(effectiveTwitterHandle, realPoints);
+        console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status} (${realPoints} pts, ${totalPoints} total)`, hubResult.data);
+
+        if (!hubResult.ok) {
+          console.error('Hub API error:', hubResult.data);
+          return { redirect: `${CLIENT_URL}?claim_result=error&claim_msg=hub_error` };
+        }
+      }
+
+      // Grant $REAL freeplay (60% of power score, capped per tier)
+      let realBonusId = null;
+      if (freePlayDollars > 0) {
+        const realResult = await grantHubReal(effectiveTwitterHandle, freePlayDollars, { source: 'season1_freeplay' });
+        console.log(`Hub $REAL grant for @${effectiveTwitterHandle}: ${realResult.status} ($${freePlayDollars})`, realResult.data);
+        if (!realResult.ok) {
+          console.error('Hub $REAL API error:', realResult.data);
+          return { redirect: `${CLIENT_URL}?claim_result=error&claim_msg=real_grant_failed` };
+        }
+        realBonusId = realResult.data.bonus_id || null;
+      }
+
+      // Mark as claimed — only reached if ALL grants succeeded
+      await client.query(
+        'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2, hub_real_bonus_id = $3, claim_real_amount = $4 WHERE twitter_id = $5',
+        [hubResult.data.bonus_id || null, realPoints, realBonusId, freePlayDollars, targetUid]
+      );
+
+      return { success: true, realPoints, freePlayDollars };
+    });
+
+    if (outcome.success) {
+      await redis.del(`scores:${targetUid}`);
+      console.log(`✓ Claimed ${outcome.realPoints} pts + $${outcome.freePlayDollars} REAL for @${effectiveTwitterHandle} (${targetUid})`);
+      return res.redirect(`${CLIENT_URL}?claim_result=success`);
     }
 
-    // Mark as claimed — only reached if ALL grants succeeded
-    await pool.query(
-      'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2, hub_real_bonus_id = $3, claim_real_amount = $4 WHERE twitter_id = $5',
-      [hubResult.data.bonus_id || null, realPoints, realBonusId, freePlayDollars, targetUid]
-    );
-
-    // Bust cache
-    await redis.del(`scores:${targetUid}`);
-
-    console.log(`✓ Claimed ${realPoints} pts + $${freePlayDollars} REAL for @${effectiveTwitterHandle} (${targetUid})`);
-    return res.redirect(`${CLIENT_URL}?claim_result=success`);
+    return res.redirect(outcome.redirect);
   } catch (err) {
     console.error('Connect callback error:', err.message);
     return res.redirect(`${CLIENT_URL}?claim_result=error&claim_msg=server_error`);
@@ -1084,53 +1110,77 @@ app.post('/auth/claim', async (req, res) => {
   if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
 
   try {
-    const result = await pool.query('SELECT * FROM scores WHERE twitter_id = $1', [twitterId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const outcome = await withClaimLock(twitterId, async (client) => {
+      const result = await client.query('SELECT * FROM scores WHERE twitter_id = $1 FOR UPDATE', [twitterId]);
+      if (result.rows.length === 0) return { status: 404, body: { error: 'User not found' } };
 
-    const row = result.rows[0];
-    if (row.claimed_at) return res.json({ success: true, alreadyClaimed: true, claimedAt: row.claimed_at, amount: parseFloat(row.claim_amount), realAmount: row.claim_real_amount ? parseFloat(row.claim_real_amount) : null });
-    if (!row.account_linked) return res.status(400).json({ error: 'Casino account not linked. Complete the connect flow first.' });
-
-    if (!BONUS_API_SECRET) return res.status(500).json({ error: 'Server not configured for claims' });
-
-    const totalPoints = row.total_points;
-    const followersCount = parseInt(row.followers_count, 10) || 0;
-    const realPoints = Math.floor(totalPoints * 0.4);
-    const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
-
-    // Grant hub points (40% of power score — referral bonus is sent separately at conversion time)
-    let hubResult = { ok: true, data: {} };
-    if (realPoints > 0) {
-      hubResult = await grantHubPoints(row.username, realPoints);
-      console.log(`Hub claim result for @${row.username}: ${hubResult.status} (${realPoints} pts, ${totalPoints} total)`, hubResult.data);
-
-      if (!hubResult.ok) {
-        console.error('Hub API error on direct claim:', hubResult.data);
-        return res.status(502).json({ error: 'Failed to grant bonus', details: hubResult.data.error || hubResult.data });
+      const row = result.rows[0];
+      if (row.claimed_at) {
+        return {
+          status: 200,
+          body: {
+            success: true,
+            alreadyClaimed: true,
+            claimedAt: row.claimed_at,
+            amount: parseFloat(row.claim_amount),
+            realAmount: row.claim_real_amount ? parseFloat(row.claim_real_amount) : null,
+          },
+        };
       }
+      if (!row.account_linked) return { status: 400, body: { error: 'Casino account not linked. Complete the connect flow first.' } };
+
+      if (!BONUS_API_SECRET) return { status: 500, body: { error: 'Server not configured for claims' } };
+
+      const totalPoints = row.total_points;
+      const followersCount = parseInt(row.followers_count, 10) || 0;
+      const realPoints = Math.floor(totalPoints * 0.4);
+      const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
+
+      // Grant hub points (40% of power score — referral bonus is sent separately at conversion time)
+      let hubResult = { ok: true, data: {} };
+      if (realPoints > 0) {
+        hubResult = await grantHubPoints(row.username, realPoints);
+        console.log(`Hub claim result for @${row.username}: ${hubResult.status} (${realPoints} pts, ${totalPoints} total)`, hubResult.data);
+
+        if (!hubResult.ok) {
+          console.error('Hub API error on direct claim:', hubResult.data);
+          return { status: 502, body: { error: 'Failed to grant bonus', details: hubResult.data.error || hubResult.data } };
+        }
+      }
+
+      // Grant $REAL freeplay (60%, capped per tier)
+      let realBonusId = null;
+      if (freePlayDollars > 0) {
+        const realResult = await grantHubReal(row.username, freePlayDollars, { source: 'season1_freeplay' });
+        console.log(`Hub $REAL claim for @${row.username}: ${realResult.status} ($${freePlayDollars})`, realResult.data);
+        if (!realResult.ok) {
+          console.error('Hub $REAL API error on direct claim:', realResult.data);
+          return { status: 502, body: { error: 'Failed to grant $REAL bonus', details: realResult.data.error || realResult.data } };
+        }
+        realBonusId = realResult.data.bonus_id || null;
+      }
+
+      // Mark as claimed — only reached if ALL grants succeeded
+      await client.query(
+        'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2, hub_real_bonus_id = $3, claim_real_amount = $4 WHERE twitter_id = $5',
+        [hubResult.data.bonus_id || null, realPoints, realBonusId, freePlayDollars, twitterId]
+      );
+
+      return {
+        status: 200,
+        body: { success: true, bonusId: hubResult.data.bonus_id, realBonusId, amount: realPoints, realAmount: freePlayDollars },
+        username: row.username,
+        realPoints,
+        freePlayDollars,
+      };
+    });
+
+    if (outcome.body.success && !outcome.body.alreadyClaimed) {
+      await redis.del(`scores:${twitterId}`);
+      console.log(`✓ Direct claim ${outcome.realPoints} pts + $${outcome.freePlayDollars} REAL for @${outcome.username} (${twitterId})`);
     }
 
-    // Grant $REAL freeplay (60%, capped per tier)
-    let realBonusId = null;
-    if (freePlayDollars > 0) {
-      const realResult = await grantHubReal(row.username, freePlayDollars, { source: 'season1_freeplay' });
-      console.log(`Hub $REAL claim for @${row.username}: ${realResult.status} ($${freePlayDollars})`, realResult.data);
-      if (!realResult.ok) {
-        console.error('Hub $REAL API error on direct claim:', realResult.data);
-        return res.status(502).json({ error: 'Failed to grant $REAL bonus', details: realResult.data.error || realResult.data });
-      }
-      realBonusId = realResult.data.bonus_id || null;
-    }
-
-    // Mark as claimed — only reached if ALL grants succeeded
-    await pool.query(
-      'UPDATE scores SET claimed_at = NOW(), hub_bonus_id = $1, claim_amount = $2, hub_real_bonus_id = $3, claim_real_amount = $4 WHERE twitter_id = $5',
-      [hubResult.data.bonus_id || null, realPoints, realBonusId, freePlayDollars, twitterId]
-    );
-    await redis.del(`scores:${twitterId}`);
-
-    console.log(`✓ Direct claim ${realPoints} pts + $${freePlayDollars} REAL for @${row.username} (${twitterId})`);
-    res.json({ success: true, bonusId: hubResult.data.bonus_id, realBonusId, amount: realPoints, realAmount: freePlayDollars });
+    return res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error('Claim error:', err.message);
     res.status(500).json({ error: 'Server error' });
