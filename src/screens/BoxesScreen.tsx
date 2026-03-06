@@ -783,62 +783,73 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
               {/* Task Cards */}
               <div className="space-y-3">
-                {/* Follow Twitter */}
-                <div className={`glass-panel rounded-xl p-4 sm:p-5 transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : ''}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
-                        {tasks.follow ? (
-                          <CheckCircleIcon className="w-5 h-5 text-green-400" />
-                        ) : (
-                          <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold tracking-wider text-white/90">
-                          {!twitterVerified ? 'Connect X Account' : tasks.follow ? 'Following @Realbet' : 'Connected'}
-                        </p>
-                        <p className="text-xs text-brand-gold/60 font-label">+500 power pts · required to unlock Gold</p>
-                      </div>
+                {/* Card 1: Connect X Account */}
+                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${twitterVerified ? 'border-green-500/20' : ''}`}>
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
+                      {twitterVerified ? (
+                        <CheckCircleIcon className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                      )}
                     </div>
-                    {!twitterVerified ? (
-                      <button
-                        onClick={() => handleTask('follow')}
-                        disabled={taskLoading === 'follow'}
-                        className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
-                      >
-                        {taskLoading === 'follow'
-                          ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                          : 'CONNECT'}
-                      </button>
-                    ) : tasks.follow ? (
-                      <span className="px-5 py-2 rounded-lg text-xs font-bold tracking-wider bg-green-500/20 text-green-400">DONE</span>
-                    ) : (
-                      <span className="px-5 py-2 rounded-lg text-xs font-bold tracking-wider bg-green-500/10 text-green-400/70 border border-green-500/20">CONNECTED ✓</span>
-                    )}
+                    <div>
+                      <p className="text-sm font-bold tracking-wider text-white/90">Connect X Account</p>
+                      <p className="text-xs text-brand-gold/60 font-label">Required to unlock Gold box</p>
+                    </div>
                   </div>
-                  {/* Follow button — shown after connect, before follow is verified */}
-                  {twitterVerified && !tasks.follow && (
-                    <div className="mt-3 pt-3 border-t border-white/5">
-                      <button
-                        onClick={handleFollowClick}
-                        disabled={followVerifying}
-                        className={`w-full px-4 py-2.5 rounded-lg text-sm font-bold tracking-wider transition-all flex items-center justify-center gap-2 ${
-                          followVerifying
-                            ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 cursor-wait'
-                            : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer'
-                        }`}
-                      >
-                        {followVerifying ? (
-                          <>
-                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                            Verifying follow...
-                          </>
-                        ) : 'FOLLOW @REALBET →'}
-                      </button>
+                  {!twitterVerified ? (
+                    <button
+                      onClick={() => handleTask('follow')}
+                      disabled={taskLoading === 'follow'}
+                      className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
+                    >
+                      {taskLoading === 'follow'
+                        ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        : 'CONNECT'}
+                    </button>
+                  ) : (
+                    <span className="px-5 py-2 rounded-lg text-xs font-bold tracking-wider bg-green-500/20 text-green-400">DONE</span>
+                  )}
+                </div>
+
+                {/* Card 2: Follow @Realbet */}
+                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : !twitterVerified ? 'opacity-50' : ''}`}>
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
+                      {tasks.follow ? (
+                        <CheckCircleIcon className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                      )}
                     </div>
+                    <div>
+                      <p className="text-sm font-bold tracking-wider text-white/90">Follow @Realbet</p>
+                      <p className="text-xs text-brand-gold/60 font-label">+500 power pts · required to unlock Gold</p>
+                    </div>
+                  </div>
+                  {tasks.follow ? (
+                    <span className="px-5 py-2 rounded-lg text-xs font-bold tracking-wider bg-green-500/20 text-green-400">DONE</span>
+                  ) : (
+                    <button
+                      onClick={handleFollowClick}
+                      disabled={!twitterVerified || followVerifying}
+                      className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all border cursor-pointer ${
+                        !twitterVerified
+                          ? 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
+                          : followVerifying
+                          ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 border-[#1DA1F2]/10 cursor-wait'
+                          : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border-[#1DA1F2]/20'
+                      }`}
+                    >
+                      {followVerifying
+                        ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        : 'FOLLOW'}
+                    </button>
                   )}
                 </div>
 
@@ -1054,11 +1065,35 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 <div className="flex-1 h-px bg-gradient-to-l from-transparent to-brand-red/40" />
               </motion.div>
 
+              {/* Score breakdown */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45 }}
+                className="glass-panel rounded-xl p-4 mb-6 sm:mb-8 max-w-sm mx-auto"
+              >
+                {[
+                  { label: 'Bronze', value: boxes.find(b => b.type === 'bronze')?.points ?? 0, color: 'text-[#C8956C]' },
+                  { label: 'Silver', value: boxes.find(b => b.type === 'silver')?.points ?? 0, color: 'text-[#9CA0A8]' },
+                  { label: 'Gold',   value: boxes.find(b => b.type === 'gold')?.points ?? 0,   color: 'text-brand-gold' },
+                  { label: 'Bonus',  value: taskBonusPoints,                                    color: 'text-green-400' },
+                ].map(({ label, value, color }, i, arr) => (
+                  <div key={label} className={`flex items-center justify-between py-2.5 ${i < arr.length - 1 ? 'border-b border-white/5' : ''}`}>
+                    <span className="text-xs font-label tracking-widest text-white/40 uppercase">{label}</span>
+                    <span className={`text-sm font-bold font-label tabular-nums ${color}`}>+{value.toLocaleString()}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-3 mt-1 border-t border-white/10">
+                  <span className="text-xs font-label tracking-widest text-white/60 uppercase">Total</span>
+                  <span className="text-base font-bold font-label tabular-nums text-white">{totalPoints.toLocaleString()}</span>
+                </div>
+              </motion.div>
+
               {/* Tagline */}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.45 }}
+                transition={{ delay: 0.55 }}
                 className="text-white/50 text-sm font-label mb-8 sm:mb-10 leading-relaxed"
               >
                 This is your number. This is your allocation.<br />Season 1 starts here.

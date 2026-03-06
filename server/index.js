@@ -561,7 +561,7 @@ app.post('/auth/discord/link', async (req, res) => {
 
 // ── Score signing (HMAC) ──
 const SCORE_SECRET = process.env.SCORE_SECRET || process.env.ADMIN_KEY;
-const TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 // Gold point ranges per follower tier.
 // Prefer server-local tierData.json (works when Railway root is /server),
@@ -666,14 +666,15 @@ app.get('/auth/scores/roll', async (req, res) => {
   // Cap gold points by remaining tier allowance so 60/40 split stays accountable.
   if (type === 'gold') {
     try {
-      const fc = parseInt(followersCount, 10) || 0;
       const rawTaskBonus = parseInt(req.query.taskBonus, 10) || 0;
       const taskBonus = Math.max(0, Math.min(MAX_TASK_BONUS, rawTaskBonus));
-      const tier = getGoldTier(fc);
+      // #1: Always use DB followers_count — never trust the client-supplied value.
       const result = await pool.query(
-        'SELECT bronze_points, silver_points FROM scores WHERE twitter_id = $1',
+        'SELECT bronze_points, silver_points, followers_count FROM scores WHERE twitter_id = $1',
         [twitterId]
       );
+      const fc = result.rows[0]?.followers_count || 0;
+      const tier = getGoldTier(fc);
       const bronzePoints = result.rows[0]?.bronze_points || 0;
       const silverPoints = result.rows[0]?.silver_points || 0;
       const basePoints = bronzePoints + silverPoints;
@@ -730,25 +731,33 @@ app.post('/auth/scores', async (req, res) => {
       return res.status(400).json({ error: 'Total doesn\'t match box sum + task bonus' });
     }
 
-    // HMAC token verification
-    const boxesWithTokens = boxes.filter(b => b.token && b.issuedAt && b.points > 0);
+    // #2: HMAC token verification — every revealed box must carry a valid token.
     const revealedBoxes = boxes.filter(b => b.points > 0);
-    if (boxesWithTokens.length > 0) {
-      // At least some tokens present — verify every one that has a token
-      for (const box of boxesWithTokens) {
-        const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
-        if (!valid) {
-          console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
-          return res.status(400).json({ error: 'Score verification failed' });
+    for (const box of revealedBoxes) {
+      if (!box.token || !box.issuedAt) {
+        console.warn(`⚠️  Score missing token: @${username || twitterId} ${box.type}=${box.points}`);
+        return res.status(400).json({ error: 'Score token missing' });
+      }
+      const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
+      if (!valid) {
+        console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
+        return res.status(400).json({ error: 'Score verification failed' });
+      }
+    }
+    // #5: Validate gold against its tier floor using DB followers_count.
+    const goldBox = boxes.find(b => b.type === 'gold');
+    if (goldBox && goldBox.points > 0) {
+      try {
+        const fcRow = await pool.query('SELECT followers_count FROM scores WHERE twitter_id = $1', [twitterId]);
+        const fc = fcRow.rows[0]?.followers_count || 0;
+        const tier = getGoldTier(fc);
+        if (goldBox.points < tier.ptMin || goldBox.points > tier.ptMax) {
+          console.warn(`⚠️  Gold out of tier range: @${username || twitterId} gold=${goldBox.points} tier ${tier.ptMin}-${tier.ptMax} (${fc} followers)`);
+          return res.status(400).json({ error: 'Gold points out of tier range' });
         }
+      } catch (e) {
+        console.error('Gold tier validation error:', e.message);
       }
-      if (boxesWithTokens.length < revealedBoxes.length) {
-        // Some boxes revealed but missing tokens (mixed session) — log and continue
-        console.warn(`Score partial tokens from @${username || twitterId}: ${boxesWithTokens.length}/${revealedBoxes.length} signed`);
-      }
-    } else if (revealedBoxes.length > 0) {
-      // No tokens at all — legacy session (pre-HMAC deploy), accept but log
-      console.warn(`Score without tokens (legacy) from @${username || twitterId}`);
     }
   }
 
@@ -757,14 +766,15 @@ app.post('/auth/scores', async (req, res) => {
     const silver = boxes?.find(b => b.type === 'silver') || {};
     const gold = boxes?.find(b => b.type === 'gold') || {};
 
+    // #4: Never downgrade existing points — only update a box if the new value is higher.
     await pool.query(
       `INSERT INTO scores (twitter_id, username, followers_count, bronze_points, bronze_tier, silver_points, silver_tier, gold_points, gold_tier, wallet_multiplier, total_points, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
        ON CONFLICT (twitter_id) DO UPDATE SET
          username = $2, followers_count = $3,
-         bronze_points = $4, bronze_tier = $5,
-         silver_points = $6, silver_tier = $7,
-         gold_points = $8, gold_tier = $9,
+         bronze_points = GREATEST(scores.bronze_points, $4), bronze_tier = CASE WHEN $4 > scores.bronze_points THEN $5 ELSE scores.bronze_tier END,
+         silver_points = GREATEST(scores.silver_points, $6), silver_tier = CASE WHEN $6 > scores.silver_points THEN $7 ELSE scores.silver_tier END,
+         gold_points   = GREATEST(scores.gold_points,   $8), gold_tier   = CASE WHEN $8 > scores.gold_points   THEN $9 ELSE scores.gold_tier   END,
          wallet_multiplier = $10, total_points = $11,
          updated_at = NOW()`,
       [
@@ -1543,15 +1553,15 @@ app.post('/auth/referral/apply', async (req, res) => {
         [referrerRow.twitter_id, twitterId, referralCode.toUpperCase(), referrerBonus, REFERRAL_BONUS_REFERRED]
       );
 
-      // Update referrer: add bonus points and increment count (referral pts stay separate from total_points)
+      // #3: Atomic cap — use LEAST() in the UPDATE so a race condition cannot exceed MAX_REFERRAL_BONUS.
       if (referrerBonus > 0) {
         await client.query(
           `UPDATE scores SET
-            referral_bonus_points = COALESCE(referral_bonus_points, 0) + $2,
+            referral_bonus_points = LEAST(COALESCE(referral_bonus_points, 0) + $2, $3),
             referral_count = COALESCE(referral_count, 0) + 1,
             updated_at = NOW()
            WHERE twitter_id = $1`,
-          [referrerRow.twitter_id, referrerBonus]
+          [referrerRow.twitter_id, referrerBonus, MAX_REFERRAL_BONUS]
         );
       } else {
         await client.query(
