@@ -35,8 +35,8 @@ function formatLabel(min: number, max: number): string {
 
 export const FOLLOWER_TIERS: FollowerTier[] = rawTiers.map(t => {
   const maxFollowers = t.maxFollowers >= 999999999 ? Infinity : t.maxFollowers;
-  // maxPowerScore = bronze(500 max) + silver(1000 max) + goldPointsMax = goldPointsMax + 1100
-  const maxPowerScore = t.goldPointsMax + 1100;
+  // maxPowerScore = bronze(500 max) + silver(1000 max) + goldPointsMax = goldPointsMax + 1500
+  const maxPowerScore = t.goldPointsMax + 1500;
   const maxRealPoints = Math.floor(maxPowerScore * 0.4);
   return {
     minFollowers: t.minFollowers,

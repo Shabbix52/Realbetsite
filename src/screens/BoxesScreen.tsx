@@ -33,7 +33,7 @@ const BOX_GRADIENTS: Record<BoxType, string> = {
 
 const BOX_POINTS: Record<BoxType, [number, number]> = {
   bronze: [100, 500],
-  silver: [500, 1100],
+  silver: [500, 1000],
   gold: [0, 0], // Gold is deterministic per follower tier — see getTierForFollowers
 };
 
@@ -467,7 +467,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
             // Step 2: Check if user is actually in the Discord server
             try {
-              const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${result.user.id}`));
+              const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${result.user.id}?twitterId=${encodeURIComponent(twitterId || '')}`));
               const memberData = await memberRes.json();
               console.log('[Tasks] Discord membership check:', memberData);
               if (memberData.member) {
@@ -485,7 +485,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // Already verified — re-check membership
         setTaskLoading('discord');
         try {
-          const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${discordUserId}`));
+          const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${discordUserId}?twitterId=${encodeURIComponent(twitterId || '')}`));
           const memberData = await memberRes.json();
           console.log('[Tasks] Discord membership re-check:', memberData);
           if (memberData.member) {

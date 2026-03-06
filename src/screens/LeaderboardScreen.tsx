@@ -215,14 +215,14 @@ const LeaderboardScreen = ({ onBack, currentUsername }: LeaderboardScreenProps) 
                       <div className="md:w-32 md:text-right flex-shrink-0">
                         <span className={`text-sm font-bold font-label ${isTop3 ? 'text-white' : 'text-white/70'}`}>
                           <span className="md:hidden text-rb-muted/25 text-xs font-normal mr-1">Power:</span>
-                          {user.totalPoints.toLocaleString()}
+                          {(user.totalPoints ?? 0).toLocaleString()}
                         </span>
                       </div>
 
                       {/* REAL Points — desktop only */}
                       <div className="hidden md:block w-28 text-right flex-shrink-0">
                         <span className={`text-sm font-bold font-label ${isTop3 ? 'text-brand-gold' : 'text-brand-gold/70'}`}>
-                          {user.realPoints.toLocaleString()}
+                          {(user.realPoints ?? 0).toLocaleString()}
                         </span>
                       </div>
                     </div>

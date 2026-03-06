@@ -621,7 +621,7 @@ function rollBoxPoints(type, followersCount) {
   } else if (type === 'bronze') {
     points = srvRandInRange(100, 500);
   } else if (type === 'silver') {
-    points = srvRandInRange(500, 1100);
+    points = srvRandInRange(500, 1000);
   } else {
     return null;
   }
@@ -647,9 +647,9 @@ function verifyScoreToken(twitterId, type, points, tierName, issuedAt, token) {
 }
 
 // Valid point ranges for server-side validation
-const VALID_RANGES = { bronze: [100, 500], silver: [500, 1100], gold: [1, 70000] };
+const VALID_RANGES = { bronze: [100, 500], silver: [500, 1000], gold: [1, 70000] };
 const MAX_TASK_BONUS = 1000; // 500 per task × 2 tasks
-const MAX_TOTAL_POINTS = 71600 + MAX_TASK_BONUS; // 500 + 1100 + 70000 + task bonuses
+const MAX_TOTAL_POINTS = 71500 + MAX_TASK_BONUS; // 500 + 1000 + 70000 + task bonuses
 
 function validatePoints(type, pts) {
   const range = VALID_RANGES[type];
@@ -1398,11 +1398,11 @@ app.get('/auth/leaderboard', async (req, res) => {
         rank: parseInt(r.rank),
         username: r.username,
         followersCount: r.followers_count || 0,
-        totalPoints: r.total_points,
-        realPoints: parseInt(r.real_points),
-        bronzePoints: r.bronze_points,
-        silverPoints: r.silver_points,
-        goldPoints: r.gold_points,
+        totalPoints: r.total_points || 0,
+        realPoints: parseInt(r.real_points) || 0,
+        bronzePoints: r.bronze_points || 0,
+        silverPoints: r.silver_points || 0,
+        goldPoints: r.gold_points || 0,
       })),
       totalUsers,
       limit,
@@ -1786,12 +1786,12 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
         twitterId: r.twitter_id,
         username: r.username,
         followersCount: r.followers_count || 0,
-        bronzePoints: r.bronze_points,
-        silverPoints: r.silver_points,
-        goldPoints: r.gold_points,
-        totalPoints: r.total_points,
-        realPoints: Math.floor(r.total_points * 0.4),
-        cashExposure: Math.round((r.total_points * 0.6 / 20) * 100) / 100,
+        bronzePoints: r.bronze_points || 0,
+        silverPoints: r.silver_points || 0,
+        goldPoints: r.gold_points || 0,
+        totalPoints: r.total_points || 0,
+        realPoints: Math.floor((r.total_points || 0) * 0.4),
+        cashExposure: Math.round(((r.total_points || 0) * 0.6 / 20) * 100) / 100,
         hasShared: !!r.shared_at,
         sharePostUrl: r.share_post_url || null,
         sharedAt: r.shared_at || null,
