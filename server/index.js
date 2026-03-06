@@ -682,7 +682,9 @@ app.get('/auth/scores/roll', async (req, res) => {
       const tierMaxPowerScore = Math.floor((tier.maxFreePlay * 20) / 0.6);
       const remainingGoldCap = Math.max(1, tierMaxPowerScore - basePoints - taskBonus);
       const cappedMax = Math.max(1, Math.min(70_000, remainingGoldCap));
-      const points = srvRandInRange(1, cappedMax);
+      // Enforce tier's goldPointsMin as floor; if remaining cap is below it, clamp to cappedMax.
+      const cappedMin = Math.min(tier.ptMin, cappedMax);
+      const points = srvRandInRange(cappedMin, cappedMax);
       const tierName = TIER_NAMES_SERVER.gold[crypto.randomInt(TIER_NAMES_SERVER.gold.length)];
 
       const issuedAt = Date.now();
