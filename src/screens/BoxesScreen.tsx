@@ -374,26 +374,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
     // ── Twitter / X ──
     if (task === 'follow') {
-      const startFollowFlow = () => {
-        const targetUsername = 'Realbet'; // matches TWITTER_TARGET_USERNAME
-        const followUrl = `https://twitter.com/intent/follow?screen_name=${targetUsername}`;
-        // Use anchor click as primary method — more reliable than window.open on mobile Safari
-        const a = document.createElement('a');
-        a.href = followUrl;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setFollowVerifying(true);
-        setTimeout(() => {
-          setFollowVerifying(false);
-          setTasks(p => ({ ...p, follow: true }));
-        }, 8000);
-      };
-
       if (!twitterVerified) {
-        // Step 1: Authenticate with X
+        // Step 1: Authenticate with X only — follow is a separate button
         setTaskLoading('follow');
         openOAuth('twitter', (result) => {
           console.log('[Tasks] Twitter OAuth result:', result.success, result.user?.username, result.error);
@@ -451,14 +433,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                   .catch(() => {});
               }
             }
-            // OAuth succeeded — immediately continue to follow intent in the same click flow.
-            startFollowFlow();
           }
           setTaskLoading(null);
         });
-      } else if (!tasks.follow) {
-        // Already verified — open follow intent and verify.
-        startFollowFlow();
       }
       return;
     }
@@ -525,6 +502,23 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
       return;
     }
   }, [taskLoading, twitterVerified, discordVerified, tasks, twitterId, openOAuth, discordUserId, onUserProfile]);
+
+  const handleFollowClick = useCallback(() => {
+    if (tasks.follow || followVerifying) return;
+    const followUrl = 'https://twitter.com/intent/follow?screen_name=Realbet';
+    const a = document.createElement('a');
+    a.href = followUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setFollowVerifying(true);
+    setTimeout(() => {
+      setFollowVerifying(false);
+      setTasks(p => ({ ...p, follow: true }));
+    }, 8000);
+  }, [tasks.follow, followVerifying]);
 
   const handleContinue = () => {
     const finalTier = boxes[2].tierName || boxes[1].tierName || boxes[0].tierName;
@@ -790,47 +784,62 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
               {/* Task Cards */}
               <div className="space-y-3">
                 {/* Follow Twitter */}
-                <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : ''}`}>
-                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
-                      {tasks.follow ? (
-                        <CheckCircleIcon className="w-5 h-5 text-green-400" />
-                      ) : (
-                        <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                        </svg>
-                      )}
+                <div className={`glass-panel rounded-xl p-4 sm:p-5 transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : ''}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
+                        {tasks.follow ? (
+                          <CheckCircleIcon className="w-5 h-5 text-green-400" />
+                        ) : (
+                          <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold tracking-wider text-white/90">
+                          {!twitterVerified ? 'Connect X Account' : tasks.follow ? 'Following @Realbet' : 'Connected'}
+                        </p>
+                        <p className="text-xs text-brand-gold/60 font-label">+500 power pts · required to unlock Gold</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold tracking-wider text-white/90">
-                        {!twitterVerified ? 'Connect & Follow @Realbet' : 'Follow @Realbet'}
-                      </p>
-                      <p className="text-xs text-brand-gold/60 font-label">+500 power pts · required to unlock Gold</p>
-                      {twitterVerified && !tasks.follow && !followVerifying && (
-                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Connected — tap Follow to continue</p>
-                      )}
-                      {followVerifying && (
-                        <p className="text-xs text-[#1DA1F2]/60 mt-0.5">Verifying follow...</p>
-                      )}
-                    </div>
+                    {!twitterVerified ? (
+                      <button
+                        onClick={() => handleTask('follow')}
+                        disabled={taskLoading === 'follow'}
+                        className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
+                      >
+                        {taskLoading === 'follow'
+                          ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                          : 'CONNECT'}
+                      </button>
+                    ) : tasks.follow ? (
+                      <span className="px-5 py-2 rounded-lg text-xs font-bold tracking-wider bg-green-500/20 text-green-400">DONE</span>
+                    ) : (
+                      <span className="px-5 py-2 rounded-lg text-xs font-bold tracking-wider bg-green-500/10 text-green-400/70 border border-green-500/20">CONNECTED ✓</span>
+                    )}
                   </div>
-                  <button
-                    onClick={() => !tasks.follow && !followVerifying && handleTask('follow')}
-                    disabled={tasks.follow || taskLoading === 'follow' || followVerifying}
-                    className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all ${
-                      tasks.follow
-                        ? 'bg-green-500/20 text-green-400 cursor-default'
-                        : followVerifying
-                        ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 cursor-wait'
-                        : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer'
-                    } ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
-                  >
-                    {(taskLoading === 'follow' || followVerifying)
-                      ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      : tasks.follow ? 'DONE'
-                      : twitterVerified ? 'FOLLOW'
-                      : 'CONNECT'}
-                  </button>
+                  {/* Follow button — shown after connect, before follow is verified */}
+                  {twitterVerified && !tasks.follow && (
+                    <div className="mt-3 pt-3 border-t border-white/5">
+                      <button
+                        onClick={handleFollowClick}
+                        disabled={followVerifying}
+                        className={`w-full px-4 py-2.5 rounded-lg text-sm font-bold tracking-wider transition-all flex items-center justify-center gap-2 ${
+                          followVerifying
+                            ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 cursor-wait'
+                            : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer'
+                        }`}
+                      >
+                        {followVerifying ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            Verifying follow...
+                          </>
+                        ) : 'FOLLOW @REALBET →'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Join Discord */}

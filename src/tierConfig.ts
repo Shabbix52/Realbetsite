@@ -35,9 +35,7 @@ function formatLabel(min: number, max: number): string {
 
 export const FOLLOWER_TIERS: FollowerTier[] = rawTiers.map(t => {
   const maxFollowers = t.maxFollowers >= 999999999 ? Infinity : t.maxFollowers;
-  // maxPowerScore = bronze(100) + silver(1000) + goldPointsMax + maxTaskBonus(1000) = goldPointsMax + 2100
-  // But original data shows maxPowerScore = goldPointsMax + 1100 (bronze 100 + silver 1000)
-  // Actually: original maxPowerScore for tier 0 = 2100 = 1000 + 1100, tier 1 = 2900 = 1800 + 1100
+  // maxPowerScore = bronze(500 max) + silver(1000 max) + goldPointsMax = goldPointsMax + 1100
   const maxPowerScore = t.goldPointsMax + 1100;
   const maxRealPoints = Math.floor(maxPowerScore * 0.4);
   return {
