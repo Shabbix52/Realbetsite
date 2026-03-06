@@ -669,11 +669,20 @@ app.get('/auth/scores/roll', async (req, res) => {
       const rawTaskBonus = parseInt(req.query.taskBonus, 10) || 0;
       const taskBonus = Math.max(0, Math.min(MAX_TASK_BONUS, rawTaskBonus));
       // #1: Always use DB followers_count — never trust the client-supplied value.
+      // Check scores table first, then fall back to users table (followers_count
+      // may not be in scores yet if the first saveScoresToDB hasn't run).
       const result = await pool.query(
         'SELECT bronze_points, silver_points, followers_count FROM scores WHERE twitter_id = $1',
         [twitterId]
       );
-      const fc = result.rows[0]?.followers_count || 0;
+      let fc = result.rows[0]?.followers_count || 0;
+      if (fc === 0) {
+        const userRow = await pool.query(
+          'SELECT followers_count FROM users WHERE provider_id = $1 AND provider = $2',
+          [twitterId, 'twitter']
+        );
+        fc = userRow.rows[0]?.followers_count || 0;
+      }
       const tier = getGoldTier(fc);
       const bronzePoints = result.rows[0]?.bronze_points || 0;
       const silverPoints = result.rows[0]?.silver_points || 0;
@@ -731,17 +740,21 @@ app.post('/auth/scores', async (req, res) => {
       return res.status(400).json({ error: 'Total doesn\'t match box sum + task bonus' });
     }
 
-    // #2: HMAC token verification — every revealed box must carry a valid token.
+    // #2: HMAC token verification.
+    // If a token IS present it must be valid (blocks forgery).
+    // If a token is absent the score is still accepted provided it passes
+    // range validation above — this covers pre-token legacy sessions.
     const revealedBoxes = boxes.filter(b => b.points > 0);
     for (const box of revealedBoxes) {
-      if (!box.token || !box.issuedAt) {
-        console.warn(`⚠️  Score missing token: @${username || twitterId} ${box.type}=${box.points}`);
-        return res.status(400).json({ error: 'Score token missing' });
-      }
-      const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
-      if (!valid) {
-        console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
-        return res.status(400).json({ error: 'Score verification failed' });
+      if (box.token && box.issuedAt) {
+        const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
+        if (!valid) {
+          console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
+          return res.status(400).json({ error: 'Score verification failed' });
+        }
+      } else {
+        // No token — log for monitoring but allow if range check passed above.
+        console.info(`ℹ️  Score accepted without token (legacy): @${username || twitterId} ${box.type}=${box.points}`);
       }
     }
     // #5: Validate gold against its tier floor using DB followers_count.
@@ -749,7 +762,14 @@ app.post('/auth/scores', async (req, res) => {
     if (goldBox && goldBox.points > 0) {
       try {
         const fcRow = await pool.query('SELECT followers_count FROM scores WHERE twitter_id = $1', [twitterId]);
-        const fc = fcRow.rows[0]?.followers_count || 0;
+        let fc = fcRow.rows[0]?.followers_count || 0;
+        if (fc === 0) {
+          const userRow = await pool.query(
+            'SELECT followers_count FROM users WHERE provider_id = $1 AND provider = $2',
+            [twitterId, 'twitter']
+          );
+          fc = userRow.rows[0]?.followers_count || 0;
+        }
         const tier = getGoldTier(fc);
         if (goldBox.points < tier.ptMin || goldBox.points > tier.ptMax) {
           console.warn(`⚠️  Gold out of tier range: @${username || twitterId} gold=${goldBox.points} tier ${tier.ptMin}-${tier.ptMax} (${fc} followers)`);

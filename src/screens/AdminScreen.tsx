@@ -528,14 +528,14 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                                 @{user.username || user.twitterId}
                               </a>
                             </td>
-                            <td className="py-2.5 px-4 text-right font-label text-rb-muted/50">{user.followersCount.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-[#C8956C]/70">{user.bronzePoints.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-[#9CA0A8]/70">{user.silverPoints.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-brand-gold/70">{user.goldPoints.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-blue-300/80">{user.bonusPoints.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-white font-bold">{user.totalPoints.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-brand-gold">{user.realPoints.toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-label text-brand-red">${user.cashExposure.toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-rb-muted/50">{(user.followersCount ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-[#C8956C]/70">{(user.bronzePoints ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-[#9CA0A8]/70">{(user.silverPoints ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-brand-gold/70">{(user.goldPoints ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-blue-300/80">{(user.bonusPoints ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-white font-bold">{(user.totalPoints ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-brand-gold">{(user.realPoints ?? 0).toLocaleString()}</td>
+                            <td className="py-2.5 px-4 text-right font-label text-brand-red">${(user.cashExposure ?? 0).toLocaleString()}</td>
                             <td className="py-2.5 px-4 text-center font-label">
                               {user.hasShared ? (
                                 user.sharePostUrl ? (
@@ -630,9 +630,9 @@ const AdminScreen = ({ onBack }: AdminScreenProps) => {
                               </td>
                               <td className="py-2.5 px-3 font-label text-purple-400/70 text-xs">{r.referralCode}</td>
                               <td className="py-2.5 px-3 text-right font-label text-white font-bold">{r.referralCount}</td>
-                              <td className="py-2.5 px-3 text-right font-label text-brand-gold">{r.referralBonusPoints.toLocaleString()}</td>
-                              <td className="py-2.5 px-3 text-right font-label text-rb-muted/60">{r.totalPoints.toLocaleString()}</td>
-                              <td className="py-2.5 px-3 text-right font-label text-rb-muted/50">{r.followersCount.toLocaleString()}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-brand-gold">{(r.referralBonusPoints ?? 0).toLocaleString()}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-rb-muted/60">{(r.totalPoints ?? 0).toLocaleString()}</td>
+                              <td className="py-2.5 px-3 text-right font-label text-rb-muted/50">{(r.followersCount ?? 0).toLocaleString()}</td>
                             </tr>
                           ))}
                         </tbody>
