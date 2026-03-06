@@ -203,19 +203,12 @@ function App() {
 
   const handleLogout = useCallback(() => {
     try {
-      // Get twitterId before clearing so we can remove per-user keys
-      const profileRaw = localStorage.getItem(USER_PROFILE_KEY);
-      const twitterId = profileRaw ? JSON.parse(profileRaw)?.twitterId : null;
-
-      localStorage.removeItem(USER_PROFILE_KEY);
-      localStorage.removeItem(REFERRAL_CODE_KEY);
-      localStorage.removeItem('realbet_box_results');
-      localStorage.removeItem('realbet_auth_state');
-
-      // Clear per-user share state
-      if (twitterId) {
-        localStorage.removeItem(`realbet_shared_${twitterId}`);
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('realbet_')) keysToRemove.push(key);
       }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     } catch { /* ignore */ }
     setUserData({ twitterId: '', username: 'degen_whale', pfp: 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale', tierName: 'House Legend', totalPoints: 0, followersCount: 0 });
     setScreen('hero');

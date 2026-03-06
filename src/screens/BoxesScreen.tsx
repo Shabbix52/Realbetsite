@@ -786,11 +786,11 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 {/* Card 1: Connect X Account */}
                 <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${twitterVerified ? 'border-green-500/20' : ''}`}>
                   <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                       {twitterVerified ? (
                         <CheckCircleIcon className="w-5 h-5 text-green-400" />
                       ) : (
-                        <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                         </svg>
                       )}
@@ -804,7 +804,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     <button
                       onClick={() => handleTask('follow')}
                       disabled={taskLoading === 'follow'}
-                      className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/20 cursor-pointer ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
+                      className={`px-5 py-2 rounded-lg text-xs font-bold tracking-wider transition-all bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/20 cursor-pointer ${taskLoading === 'follow' ? 'opacity-50' : ''}`}
                     >
                       {taskLoading === 'follow'
                         ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -818,11 +818,11 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 {/* Card 2: Follow @Realbet */}
                 <div className={`glass-panel rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 transition-all duration-300 ${tasks.follow ? 'border-green-500/20' : !twitterVerified ? 'opacity-50' : ''}`}>
                   <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-[#1DA1F2]/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                       {tasks.follow ? (
                         <CheckCircleIcon className="w-5 h-5 text-green-400" />
                       ) : (
-                        <svg className="w-5 h-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                         </svg>
                       )}
@@ -842,8 +842,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                         !twitterVerified
                           ? 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
                           : followVerifying
-                          ? 'bg-[#1DA1F2]/10 text-[#1DA1F2]/50 border-[#1DA1F2]/10 cursor-wait'
-                          : 'bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border-[#1DA1F2]/20'
+                          ? 'bg-purple-500/10 text-purple-400/50 border-purple-500/10 cursor-wait'
+                          : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border-purple-500/20'
                       }`}
                     >
                       {followVerifying
