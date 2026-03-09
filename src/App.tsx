@@ -206,7 +206,8 @@ function App() {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('realbet_')) keysToRemove.push(key);
+        // Keep realbet_shared_* keys — they're per-user and restored from DB anyway
+        if (key && key.startsWith('realbet_') && !key.startsWith('realbet_shared_')) keysToRemove.push(key);
       }
       keysToRemove.forEach(key => localStorage.removeItem(key));
     } catch { /* ignore */ }

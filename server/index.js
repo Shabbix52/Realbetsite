@@ -497,7 +497,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
       followersCount,
     });
     // Cache in Redis (expire in 24h)
-    await redis.setEx(`user:twitter:${user.id}`, 86400, JSON.stringify({ dbId, username: user.username, followersCount }));
+    await safeRedisSetEx(`user:twitter:${user.id}`, 86400, JSON.stringify({ dbId, username: user.username, followersCount }));
     console.log(`Twitter user @${user.username} (${followersCount} followers) saved (db id: ${dbId}, login #${loginCount})`);
 
     sendResult(res, true, 'twitter', null, {
@@ -591,7 +591,7 @@ app.get('/auth/discord/callback', async (req, res) => {
       avatar: avatarUrl,
     });
     // Cache in Redis (expire in 24h)
-    await redis.setEx(`user:discord:${userData.id}`, 86400, JSON.stringify({ dbId, username: userData.username }));
+    await safeRedisSetEx(`user:discord:${userData.id}`, 86400, JSON.stringify({ dbId, username: userData.username }));
     console.log(`Discord user ${userData.username} saved (db id: ${dbId})`);
 
     sendResult(res, true, 'discord', null, {
@@ -656,7 +656,7 @@ app.post('/auth/discord/link', async (req, res) => {
     );
 
     // Invalidate the user's Redis score cache so next read includes discord info
-    await redis.del(`scores:${twitterId}`);
+    await safeRedisDel(`scores:${twitterId}`);
 
     console.log(`Discord ${discordUsername || discordId} linked to Twitter ${twitterId}`);
     res.json({ success: true });
@@ -938,7 +938,7 @@ app.post('/auth/scores', async (req, res) => {
       taskBonus: Number(req.body.taskBonus) || 0,
       totalPoints: totalPoints || 0,
     };
-    await redis.setEx(`scores:${twitterId}`, 86400, JSON.stringify(cacheData));
+    await safeRedisSetEx(`scores:${twitterId}`, 86400, JSON.stringify(cacheData));
     console.log(`Scores saved for @${username || twitterId}`);
     res.json({ success: true });
   } catch (err) {
@@ -952,7 +952,7 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
 
   try {
     // Try Redis cache first
-    const cached = await redis.get(`scores:${twitterId}`);
+    const cached = await safeRedisGet(`scores:${twitterId}`);
     if (cached) return res.json(JSON.parse(cached));
 
     // Fallback to DB
@@ -985,7 +985,7 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
       totalPoints: row.total_points,
     };
 
-    await redis.setEx(`scores:${twitterId}`, 86400, JSON.stringify(data));
+    await safeRedisSetEx(`scores:${twitterId}`, 86400, JSON.stringify(data));
     res.json(data);
   } catch (err) {
     console.error('Score load error:', err.message);
@@ -1175,7 +1175,7 @@ async function handleConnectCallback(req, res) {
     });
 
     if (outcome.success) {
-      await redis.del(`scores:${targetUid}`);
+      await safeRedisDel(`scores:${targetUid}`);
       console.log(`✓ Claimed ${outcome.realPoints} pts + $${outcome.freePlayDollars} REAL for @${effectiveTwitterHandle} (${targetUid})`);
       return res.redirect(`${CLIENT_URL}?claim_result=success`);
     }
@@ -1267,7 +1267,7 @@ app.post('/auth/claim', async (req, res) => {
     });
 
     if (outcome.body.success && !outcome.body.alreadyClaimed) {
-      await redis.del(`scores:${twitterId}`);
+      await safeRedisDel(`scores:${twitterId}`);
       console.log(`✓ Direct claim ${outcome.realPoints} pts + $${outcome.freePlayDollars} REAL for @${outcome.username} (${twitterId})`);
     }
 
@@ -1327,7 +1327,7 @@ app.post('/auth/share-image', express.json({ limit: '6mb' }), async (req, res) =
        ON CONFLICT (twitter_id) DO UPDATE SET share_image = $2`,
       [twitterId, base64Data]
     );
-    await redis.del(`scores:${twitterId}`);
+    await safeRedisDel(`scores:${twitterId}`);
     const shareUrl = `${CLIENT_URL}/share/${twitterId}?v=${Date.now()}`;
     res.json({ success: true, shareUrl });
   } catch (err) {
@@ -1432,7 +1432,7 @@ app.post('/auth/share', async (req, res) => {
          shared_at = COALESCE(scores.shared_at, NOW())`,
       [twitterId, url]
     );
-    await redis.del(`scores:${twitterId}`);
+    await safeRedisDel(`scores:${twitterId}`);
     res.json({ success: true });
   } catch (err) {
     console.error('Share save error:', err.message);
@@ -1455,7 +1455,7 @@ app.post('/auth/wallet', async (req, res) => {
        ON CONFLICT (address) DO UPDATE SET chain = $2, balance = $3`,
       [address.toLowerCase(), chain || 'unknown', balance || 0]
     );
-    await redis.setEx(`wallet:${address.toLowerCase()}`, 86400, JSON.stringify({ chain, balance }));
+    await safeRedisSetEx(`wallet:${address.toLowerCase()}`, 86400, JSON.stringify({ chain, balance }));
     console.log(`Wallet ${address.slice(0, 10)}... saved (${chain})`);
     res.json({ success: true });
   } catch (err) {
@@ -1475,7 +1475,7 @@ app.get('/auth/leaderboard', async (req, res) => {
   try {
     // Try cache for page 1
     if (offset === 0 && limit <= 100) {
-      const cached = await redis.get('leaderboard:top100');
+      const cached = await safeRedisGet('leaderboard:top100');
       if (cached) return res.json(JSON.parse(cached));
     }
 
@@ -1552,7 +1552,7 @@ app.get('/auth/leaderboard', async (req, res) => {
 
     // Cache first page for 2 minutes
     if (offset === 0 && limit <= 100) {
-      await redis.setEx('leaderboard:top100', 120, JSON.stringify(data));
+      await safeRedisSetEx('leaderboard:top100', 120, JSON.stringify(data));
     }
 
     res.json(data);
@@ -1583,7 +1583,7 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
 
   try {
     // Try cache first
-    const cached = await redis.get(`referral:${twitterId}`);
+    const cached = await safeRedisGet(`referral:${twitterId}`);
     if (cached) return res.json(JSON.parse(cached));
 
     // Check if user already has a referral code
@@ -1649,7 +1649,7 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
     };
 
     // Cache for 5 minutes
-    await redis.setEx(`referral:${twitterId}`, 300, JSON.stringify(data));
+    await safeRedisSetEx(`referral:${twitterId}`, 300, JSON.stringify(data));
     res.json(data);
   } catch (err) {
     console.error('Referral fetch error:', err.message);
@@ -1748,11 +1748,11 @@ app.post('/auth/referral/apply', async (req, res) => {
       await client.query('COMMIT');
 
       // Invalidate caches
-      await redis.del(`referral:${referrerRow.twitter_id}`);
-      await redis.del(`referral:${twitterId}`);
-      await redis.del(`scores:${referrerRow.twitter_id}`);
-      await redis.del(`scores:${twitterId}`);
-      await redis.del('leaderboard:top100');
+      await safeRedisDel(`referral:${referrerRow.twitter_id}`);
+      await safeRedisDel(`referral:${twitterId}`);
+      await safeRedisDel(`scores:${referrerRow.twitter_id}`);
+      await safeRedisDel(`scores:${twitterId}`);
+      await safeRedisDel('leaderboard:top100');
 
       console.log(`Referral: @${username || twitterId} used code ${referralCode} from @${referrerRow.username}. Referrer bonus: ${referrerBonus}, Referred bonus: ${REFERRAL_BONUS_REFERRED}`);
 
