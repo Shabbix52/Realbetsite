@@ -299,7 +299,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             .reduce((sum, b) => sum + (b.points || 0), 0);
           const remainingGoldCap = Math.max(1, tier.maxPowerScore - basePoints - currentTaskBonus);
           const cappedMax = Math.max(1, Math.min(70_000, remainingGoldCap));
-          points = randomInRange(1, cappedMax);
+          const cappedMin = Math.min(tier.goldPointsMin, cappedMax);
+          points = randomInRange(cappedMin, cappedMax);
         } else {
           const [min, max] = BOX_POINTS[box.type];
           points = randomInRange(min, max);
