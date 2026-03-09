@@ -89,10 +89,19 @@ for (const key of REQUIRED_ENV) {
   }
 }
 
-// PostgreSQL
+// PostgreSQL — configured for high concurrency (10k+ users)
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
+  max: parseInt(process.env.PG_POOL_MAX || '50', 10), // Max connections (default 50)
+  idleTimeoutMillis: 30_000, // Close idle connections after 30s
+  connectionTimeoutMillis: 10_000, // Fail fast if can't connect in 10s
+  allowExitOnIdle: false, // Keep pool alive
+});
+
+// Pool error handling — prevent crashes on connection issues
+pool.on('error', (err) => {
+  console.error('PostgreSQL pool error:', err.message);
 });
 
 async function initDB() {
@@ -205,16 +214,74 @@ async function upsertUser(provider, providerData) {
   return { id: result.rows[0].id, loginCount: result.rows[0].login_count };
 }
 
-// Redis
+// Redis — configured for high concurrency with robust reconnection
 const redis = createClient({
   url: process.env.REDIS_URL,
-  socket: { reconnectStrategy: (retries) => Math.min(retries * 500, 5000) },
+  socket: {
+    reconnectStrategy: (retries) => {
+      if (retries > 20) {
+        console.error('Redis max reconnection attempts reached');
+        return new Error('Redis max retries exceeded');
+      }
+      const delay = Math.min(retries * 500, 5000);
+      console.log(`Redis reconnecting in ${delay}ms (attempt ${retries})`);
+      return delay;
+    },
+    connectTimeout: 10_000,
+  },
 });
-redis.on('error', (err) => console.error('Redis error:', err.message));
+
+let redisReady = false;
+redis.on('error', (err) => {
+  redisReady = false;
+  console.error('Redis error:', err.message);
+});
+redis.on('ready', () => {
+  redisReady = true;
+  console.log('✓ Redis ready');
+});
+redis.on('reconnecting', () => {
+  redisReady = false;
+  console.log('Redis reconnecting...');
+});
 
 async function initRedis() {
   await redis.connect();
+  redisReady = true;
   console.log('✓ Redis connected');
+}
+
+// Helper: safe Redis operations with fallback
+async function safeRedisGet(key) {
+  if (!redisReady) return null;
+  try {
+    return await redis.get(key);
+  } catch (err) {
+    console.warn(`Redis GET ${key} failed:`, err.message);
+    return null;
+  }
+}
+
+async function safeRedisSetEx(key, ttl, value) {
+  if (!redisReady) return false;
+  try {
+    await redis.setEx(key, ttl, value);
+    return true;
+  } catch (err) {
+    console.warn(`Redis SETEX ${key} failed:`, err.message);
+    return false;
+  }
+}
+
+async function safeRedisDel(key) {
+  if (!redisReady) return false;
+  try {
+    await redis.del(key);
+    return true;
+  } catch (err) {
+    console.warn(`Redis DEL ${key} failed:`, err.message);
+    return false;
+  }
 }
 
 // ── In-memory store for OAuth state / PKCE verifiers ──
@@ -2098,8 +2165,83 @@ setInterval(() => {
   }
 }, 2 * 60 * 1000);
 
-app.listen(PORT, async () => {
+// ─────────────────────────────────────────────
+//  HEALTH CHECKS — for load balancers & monitoring
+// ─────────────────────────────────────────────
+
+// Lightweight liveness probe — server is running
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: Date.now() });
+});
+
+// Deeper readiness probe — dependencies are connected
+app.get('/health/ready', async (req, res) => {
+  const checks = { postgres: false, redis: false };
+  
+  try {
+    await pool.query('SELECT 1');
+    checks.postgres = true;
+  } catch (err) {
+    console.warn('Health check: PostgreSQL failed', err.message);
+  }
+  
+  checks.redis = redisReady;
+  
+  const allHealthy = checks.postgres && checks.redis;
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ready' : 'degraded',
+    checks,
+    timestamp: Date.now(),
+  });
+});
+
+// ─────────────────────────────────────────────
+//  GRACEFUL SHUTDOWN — clean connection teardown
+// ─────────────────────────────────────────────
+
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n${signal} received — shutting down gracefully...`);
+  
+  // Stop accepting new connections
+  server.close(() => {
+    console.log('✓ HTTP server closed');
+  });
+  
+  // Close database pool (waits for active queries)
+  try {
+    await pool.end();
+    console.log('✓ PostgreSQL pool closed');
+  } catch (err) {
+    console.error('PostgreSQL shutdown error:', err.message);
+  }
+  
+  // Close Redis connection
+  try {
+    await redis.quit();
+    console.log('✓ Redis connection closed');
+  } catch (err) {
+    console.error('Redis shutdown error:', err.message);
+  }
+  
+  console.log('Shutdown complete');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// ─────────────────────────────────────────────
+//  SERVER STARTUP
+// ─────────────────────────────────────────────
+
+const server = app.listen(PORT, async () => {
   await initDB();
   await initRedis();
   console.log(`OAuth server running on http://localhost:${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Ready check: http://localhost:${PORT}/health/ready`);
 });
