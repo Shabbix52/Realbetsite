@@ -224,6 +224,41 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   const TASK_BONUS = 500;
 
+  const restoreScoresFromDB = useCallback(async (tid: string) => {
+    try {
+      const res = await fetch(getApiUrl(`/auth/scores/${tid}`));
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.boxes) return;
+
+      const restoredBoxes = data.boxes as BoxData[];
+      setBoxes(restoredBoxes);
+      saveBoxes(restoredBoxes);
+      setSubScreen(deriveSubScreen(restoredBoxes));
+      setAllDone(restoredBoxes.find(b => b.type === 'gold')?.state === 'revealed');
+
+      if (data.followersCount) setFollowersCount(data.followersCount);
+      if (data.discordId) {
+        setDiscordVerified(true);
+        setDiscordUserId(data.discordId);
+        setTasks(prev => ({ ...prev, discord: true }));
+      }
+
+      if (data.totalPoints && data.boxes) {
+        const boxSum = data.boxes.reduce((sum: number, box: BoxData) => sum + (box.points || 0), 0);
+        const refBonus = data.referralBonusPoints || 0;
+        const inferredBonus = Math.max(0, data.totalPoints - boxSum - refBonus);
+        const discordBonus = data.discordId ? 500 : 0;
+        setTasks(prev => ({
+          ...prev,
+          follow: (inferredBonus - discordBonus) >= 500,
+        }));
+      }
+    } catch (err) {
+      console.error('[Boxes] Failed to restore scores from DB:', err);
+    }
+  }, []);
+
   // Save scores to DB
   const saveScoresToDB = useCallback(async (currentBoxes: BoxData[], currentTasks = tasks) => {
     const tid = twitterId;
@@ -231,7 +266,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     const taskBonus = (currentTasks.follow ? TASK_BONUS : 0) + (currentTasks.discord ? TASK_BONUS : 0);
     const total = currentBoxes.reduce((sum, b) => sum + b.points, 0) + taskBonus;
     try {
-      await fetch(getApiUrl('/auth/scores'), {
+      const res = await fetch(getApiUrl('/auth/scores'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,8 +279,28 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           totalPoints: total,
         }),
       });
+
+      if (!res.ok) {
+        let errorMessage = `HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          errorMessage = data?.error || errorMessage;
+        } catch {
+          // Ignore JSON parsing failure and keep fallback message.
+        }
+
+        console.warn(`[Boxes] Score save rejected for ${tid}: ${errorMessage}`);
+
+        if (
+          errorMessage === 'Gold points out of tier range' ||
+          errorMessage === 'Score verification failed' ||
+          errorMessage === 'Total doesn\'t match box sum + task bonus'
+        ) {
+          await restoreScoresFromDB(tid);
+        }
+      }
     } catch { /* non-blocking */ }
-  }, [twitterId, twitterUsername, followersCount, tasks]);
+  }, [twitterId, twitterUsername, followersCount, tasks, restoreScoresFromDB]);
 
   const taskBonusPoints = (tasks.follow ? TASK_BONUS : 0) + (tasks.discord ? TASK_BONUS : 0);
   const totalPoints = boxes.reduce((sum, b) => sum + b.points, 0) + taskBonusPoints;
