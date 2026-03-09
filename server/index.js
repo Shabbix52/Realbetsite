@@ -95,7 +95,7 @@ const pool = new pg.Pool({
   ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
   max: parseInt(process.env.PG_POOL_MAX || '50', 10), // Max connections (default 50)
   idleTimeoutMillis: 30_000, // Close idle connections after 30s
-  connectionTimeoutMillis: 10_000, // Fail fast if can't connect in 10s
+  connectionTimeoutMillis: parseInt(process.env.PG_CONNECTION_TIMEOUT_MS || '30000', 10),
   allowExitOnIdle: false, // Keep pool alive
 });
 
@@ -196,6 +196,30 @@ async function initDB() {
     console.log('✓ PostgreSQL connected & tables ready');
   } finally {
     client.release();
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function initWithRetry(name, fn, options = {}) {
+  const retries = options.retries ?? 8;
+  const baseDelayMs = options.baseDelayMs ?? 2000;
+  const maxDelayMs = options.maxDelayMs ?? 15000;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await fn();
+      if (attempt > 1) console.log(`✓ ${name} recovered on attempt ${attempt}`);
+      return;
+    } catch (err) {
+      const delay = Math.min(baseDelayMs * attempt, maxDelayMs);
+      const msg = err?.message || String(err);
+      console.error(`${name} init failed (attempt ${attempt}/${retries}): ${msg}`);
+      if (attempt === retries) throw err;
+      await sleep(delay);
+    }
   }
 }
 
@@ -2200,6 +2224,7 @@ app.get('/health/ready', async (req, res) => {
 // ─────────────────────────────────────────────
 
 let isShuttingDown = false;
+let server = null;
 
 async function gracefulShutdown(signal) {
   if (isShuttingDown) return;
@@ -2207,9 +2232,14 @@ async function gracefulShutdown(signal) {
   console.log(`\n${signal} received — shutting down gracefully...`);
   
   // Stop accepting new connections
-  server.close(() => {
-    console.log('✓ HTTP server closed');
-  });
+  if (server) {
+    await new Promise(resolve => {
+      server.close(() => {
+        console.log('✓ HTTP server closed');
+        resolve();
+      });
+    });
+  }
   
   // Close database pool (waits for active queries)
   try {
@@ -2238,10 +2268,28 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 //  SERVER STARTUP
 // ─────────────────────────────────────────────
 
-const server = app.listen(PORT, async () => {
-  await initDB();
-  await initRedis();
-  console.log(`OAuth server running on http://localhost:${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Ready check: http://localhost:${PORT}/health/ready`);
-});
+async function bootstrap() {
+  try {
+    await initWithRetry('PostgreSQL', initDB, {
+      retries: parseInt(process.env.STARTUP_DB_RETRIES || '10', 10),
+      baseDelayMs: 2000,
+      maxDelayMs: 20000,
+    });
+    await initWithRetry('Redis', initRedis, {
+      retries: parseInt(process.env.STARTUP_REDIS_RETRIES || '10', 10),
+      baseDelayMs: 1000,
+      maxDelayMs: 10000,
+    });
+
+    server = app.listen(PORT, () => {
+      console.log(`OAuth server running on http://localhost:${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
+      console.log(`Ready check: http://localhost:${PORT}/health/ready`);
+    });
+  } catch (err) {
+    console.error('FATAL: startup failed after retries:', err?.message || err);
+    process.exit(1);
+  }
+}
+
+bootstrap();
