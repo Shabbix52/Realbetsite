@@ -576,17 +576,26 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
       return;
     }
     setShareUrlError('');
-    // Persist locally
+    // Save to backend — only persist locally on success
+    if (userData.twitterId) {
+      try {
+        const resp = await fetch(getApiUrl('/auth/share'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ twitterId: userData.twitterId, postUrl: url || null }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          setShareUrlError(data.error || 'Failed to save share');
+          return;
+        }
+      } catch {
+        setShareUrlError('Network error — please try again');
+        return;
+      }
+    }
     if (sharedKey) {
       try { localStorage.setItem(sharedKey, '1'); } catch { /* ignore */ }
-    }
-    // Save to backend
-    if (userData.twitterId) {
-      fetch(getApiUrl('/auth/share'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ twitterId: userData.twitterId, postUrl: url || null }),
-      }).catch(() => {});
     }
     setShowShareModal(false);
     setShared(true);

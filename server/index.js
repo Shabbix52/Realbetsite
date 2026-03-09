@@ -1423,6 +1423,21 @@ app.post('/auth/share', async (req, res) => {
     return res.status(400).json({ error: 'Invalid post URL — must be a full x.com/username/status/id link' });
   }
 
+  // Reject duplicate: same tweet URL already used by a different user
+  if (url) {
+    try {
+      const dup = await pool.query(
+        `SELECT twitter_id FROM scores WHERE share_post_url = $1 AND twitter_id != $2 LIMIT 1`,
+        [url, twitterId]
+      );
+      if (dup.rows.length > 0) {
+        return res.status(409).json({ error: 'This post link has already been used by another user' });
+      }
+    } catch (e) {
+      console.error('Duplicate share check error:', e.message);
+    }
+  }
+
   try {
     await pool.query(
       `INSERT INTO scores (twitter_id, share_post_url, shared_at)
