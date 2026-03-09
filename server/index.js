@@ -1916,29 +1916,36 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
     ]);
 
     res.json({
-      users: result.rows.map(r => ({
-        bonusPoints: (() => {
-          const boxSum = (r.bronze_points || 0) + (r.silver_points || 0) + (r.gold_points || 0);
-          const delta = (r.total_points || 0) - boxSum;
-          if (delta >= 1000) return 1000;
-          if (delta >= 500) return 500;
-          return 0;
-        })(),
-        twitterId: r.twitter_id,
-        username: r.username,
-        followersCount: r.followers_count || 0,
-        bronzePoints: r.bronze_points || 0,
-        silverPoints: r.silver_points || 0,
-        goldPoints: r.gold_points || 0,
-        totalPoints: r.total_points || 0,
-        realPoints: Math.floor((r.total_points || 0) * 0.4),
-        cashExposure: Math.round(((r.total_points || 0) * 0.6 / 20) * 100) / 100,
-        hasShared: !!r.shared_at,
-        sharePostUrl: r.share_post_url || null,
-        sharedAt: r.shared_at || null,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-      })),
+      users: result.rows.map(r => {
+        const bronzePoints = r.bronze_points || 0;
+        const silverPoints = r.silver_points || 0;
+        const goldPoints = r.gold_points || 0;
+        const boxSum = bronzePoints + silverPoints + goldPoints;
+        const storedTotal = r.total_points || 0;
+        const referralBonusPoints = r.referral_bonus_points || 0;
+        const delta = storedTotal - boxSum;
+        const taskBonusPoints = delta >= 1000 ? 1000 : delta >= 500 ? 500 : 0;
+        const effectiveTotalPoints = boxSum + taskBonusPoints + referralBonusPoints;
+
+        return {
+          taskBonusPoints,
+          referralBonusPoints,
+          twitterId: r.twitter_id,
+          username: r.username,
+          followersCount: r.followers_count || 0,
+          bronzePoints,
+          silverPoints,
+          goldPoints,
+          totalPoints: effectiveTotalPoints,
+          realPoints: Math.floor(effectiveTotalPoints * 0.4),
+          cashExposure: Math.round(((effectiveTotalPoints * 0.6) / 20) * 100) / 100,
+          hasShared: !!r.shared_at,
+          sharePostUrl: r.share_post_url || null,
+          sharedAt: r.shared_at || null,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        };
+      }),
       total: parseInt(countResult.rows[0].count),
       limit,
       offset,
