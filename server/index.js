@@ -911,13 +911,13 @@ app.post('/auth/scores', async (req, res) => {
       [twitterId]
     );
     if (existingRow.rows.length > 0 && existingRow.rows[0].gold_points > 0) {
-      // Scores frozen — allow username/followersCount metadata update only
+      // Scores frozen — keep the original follower tier snapshot intact.
       await pool.query(
-        'UPDATE scores SET username = COALESCE($2, username), followers_count = COALESCE(NULLIF($3, 0), followers_count), updated_at = NOW() WHERE twitter_id = $1',
-        [twitterId, username || null, followersCount || 0]
+        'UPDATE scores SET username = COALESCE($2, username), updated_at = NOW() WHERE twitter_id = $1',
+        [twitterId, username || null]
       );
       await safeRedisDel(`scores:${twitterId}`);
-      console.log(`Scores frozen for @${username || twitterId} (gold already revealed) — metadata updated only`);
+      console.log(`Scores frozen for @${username || twitterId} (gold already revealed) — follower tier locked`);
       return res.json({ success: true, frozen: true });
     }
 
