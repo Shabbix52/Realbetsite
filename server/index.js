@@ -898,7 +898,10 @@ app.post('/auth/scores', async (req, res) => {
     const gold = boxes?.find(b => b.type === 'gold') || {};
 
     // #4: Never downgrade existing points — only update a box if the new value is higher.
-    await pool.query(
+    // Use RETURNING * to get the full row back so we can build an accurate Redis cache
+    // that preserves share state, discord linkage, referral bonuses, and claim info.
+    // total_points stores box_sum + task_bonus only; referral_bonus_points is added at read time.
+    const upsertResult = await pool.query(
       `INSERT INTO scores (twitter_id, username, followers_count, bronze_points, bronze_tier, silver_points, silver_tier, gold_points, gold_tier, wallet_multiplier, total_points, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
        ON CONFLICT (twitter_id) DO UPDATE SET
@@ -906,8 +909,10 @@ app.post('/auth/scores', async (req, res) => {
          bronze_points = GREATEST(scores.bronze_points, $4), bronze_tier = CASE WHEN $4 > scores.bronze_points THEN $5 ELSE scores.bronze_tier END,
          silver_points = GREATEST(scores.silver_points, $6), silver_tier = CASE WHEN $6 > scores.silver_points THEN $7 ELSE scores.silver_tier END,
          gold_points   = GREATEST(scores.gold_points,   $8), gold_tier   = CASE WHEN $8 > scores.gold_points   THEN $9 ELSE scores.gold_tier   END,
-         wallet_multiplier = $10, total_points = $11,
-         updated_at = NOW()`,
+         wallet_multiplier = $10,
+         total_points = GREATEST(scores.total_points, $11),
+         updated_at = NOW()
+       RETURNING *`,
       [
         twitterId, username || null, followersCount || 0,
         bronze.points || 0, bronze.tierName || null,
@@ -917,26 +922,29 @@ app.post('/auth/scores', async (req, res) => {
       ]
     );
 
+    // Build cache from the actual DB row so share state, discord, referral, and claim info are preserved.
+    const row = upsertResult.rows[0];
+    const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
+    const cacheBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
     const cacheData = {
-      twitterId,
-      username: username || null,
-      followersCount: followersCount || 0,
-      discordId: null,
-      discordUsername: null,
-      hasShared: false,
-      sharePostUrl: null,
-      accountLinked: false,
-      claimedAt: null,
-      claimAmount: null,
-      referralBonusPoints: 0,
+      twitterId: row.twitter_id,
+      username: row.username || null,
+      followersCount: row.followers_count || 0,
+      discordId: row.discord_id || null,
+      discordUsername: row.discord_username || null,
+      hasShared: !!row.shared_at,
+      sharePostUrl: row.share_post_url || null,
+      accountLinked: !!row.account_linked,
+      claimedAt: row.claimed_at || null,
+      claimAmount: row.claim_amount ? parseFloat(row.claim_amount) : null,
+      referralBonusPoints: refBonus,
       boxes: [
-        { type: 'bronze', state: 'revealed', points: bronze.points || 0, tierName: bronze.tierName || null },
-        { type: 'silver', state: 'revealed', points: silver.points || 0, tierName: silver.tierName || null },
-        { type: 'gold', state: (gold.points || 0) > 0 ? 'revealed' : 'locked', points: gold.points || 0, tierName: gold.tierName || null },
+        { type: 'bronze', state: 'revealed', points: row.bronze_points || 0, tierName: row.bronze_tier || null },
+        { type: 'silver', state: 'revealed', points: row.silver_points || 0, tierName: row.silver_tier || null },
+        { type: 'gold', state: (row.gold_points || 0) > 0 ? 'revealed' : 'locked', points: row.gold_points || 0, tierName: row.gold_tier || null },
       ],
-      walletMultiplier: walletMultiplier || 1,
-      taskBonus: Number(req.body.taskBonus) || 0,
-      totalPoints: totalPoints || 0,
+      walletMultiplier: parseFloat(row.wallet_multiplier) || 1,
+      totalPoints: Math.max(row.total_points || 0, cacheBoxSum) + refBonus,
     };
     await safeRedisSetEx(`scores:${twitterId}`, 86400, JSON.stringify(cacheData));
     console.log(`Scores saved for @${username || twitterId}`);
@@ -964,6 +972,8 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
     if (result.rows.length === 0) return res.json(null);
 
     const row = result.rows[0];
+    const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
+    const getBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
     const data = {
       twitterId: row.twitter_id,
       username: row.username,
@@ -981,8 +991,8 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
         { type: 'gold', state: row.gold_points > 0 ? 'revealed' : 'locked', points: row.gold_points, tierName: row.gold_tier },
       ],
       walletMultiplier: parseFloat(row.wallet_multiplier),
-      referralBonusPoints: parseInt(row.referral_bonus_points, 10) || 0,
-      totalPoints: row.total_points,
+      referralBonusPoints: refBonus,
+      totalPoints: Math.max(row.total_points || 0, getBoxSum) + refBonus,
     };
 
     await safeRedisSetEx(`scores:${twitterId}`, 86400, JSON.stringify(data));
@@ -1131,7 +1141,9 @@ async function handleConnectCallback(req, res) {
         return { redirect: `${CLIENT_URL}?claim_result=already_claimed` };
       }
 
-      const totalPoints = row.total_points;
+      const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
+      const claimBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
+      const totalPoints = Math.max(row.total_points || 0, claimBoxSum) + refBonus;
       const followersCount = parseInt(row.followers_count, 10) || 0;
       const realPoints = Math.floor(totalPoints * 0.4);
       const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
@@ -1141,7 +1153,7 @@ async function handleConnectCallback(req, res) {
         return { redirect: `${CLIENT_URL}?claim_result=error&claim_msg=config_error` };
       }
 
-      // Grant hub points (40% of power score — referral bonus is sent separately at conversion time)
+      // Grant hub points (40% of power score including referral bonus)
       let hubResult = { ok: true, data: {} };
       if (realPoints > 0) {
         hubResult = await grantHubPoints(effectiveTwitterHandle, realPoints);
@@ -1222,12 +1234,14 @@ app.post('/auth/claim', async (req, res) => {
 
       if (!BONUS_API_SECRET) return { status: 500, body: { error: 'Server not configured for claims' } };
 
-      const totalPoints = row.total_points;
+      const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
+      const directClaimBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
+      const totalPoints = Math.max(row.total_points || 0, directClaimBoxSum) + refBonus;
       const followersCount = parseInt(row.followers_count, 10) || 0;
       const realPoints = Math.floor(totalPoints * 0.4);
       const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
 
-      // Grant hub points (40% of power score — referral bonus is sent separately at conversion time)
+      // Grant hub points (40% of power score including referral bonus)
       let hubResult = { ok: true, data: {} };
       if (realPoints > 0) {
         hubResult = await grantHubPoints(row.username, realPoints);

@@ -263,6 +263,8 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const saveScoresToDB = useCallback(async (currentBoxes: BoxData[], currentTasks = tasks) => {
     const tid = twitterId;
     if (!tid) return;
+    // Don't save empty/initial state — prevents overwriting DB during restore after re-login
+    if (currentBoxes.every(b => b.points === 0)) return;
     const taskBonus = (currentTasks.follow ? TASK_BONUS : 0) + (currentTasks.discord ? TASK_BONUS : 0);
     const total = currentBoxes.reduce((sum, b) => sum + b.points, 0) + taskBonus;
     try {
@@ -589,9 +591,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     if (goldAlreadyRevealed && !autoAdvancedRef.current) {
       autoAdvancedRef.current = true;
       const finalTier = initialBoxes[2].tierName || initialBoxes[1].tierName || initialBoxes[0].tierName;
-      const total = initialBoxes.reduce((s, b) => s + b.points, 0);
+      const boxSum = initialBoxes.reduce((s, b) => s + b.points, 0);
+      const savedTaskBonus = (savedAuth?.tasks?.follow ? TASK_BONUS : 0) + (savedAuth?.tasks?.discord ? TASK_BONUS : 0);
       const timer = setTimeout(() => {
-        onComplete(total, finalTier, followersCount);
+        onComplete(boxSum + savedTaskBonus, finalTier, followersCount);
       }, 600);
       return () => clearTimeout(timer);
     }
