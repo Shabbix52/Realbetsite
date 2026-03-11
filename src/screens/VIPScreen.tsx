@@ -508,6 +508,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const tier = getTierForFollowers(userData.followersCount);
   const allocationDollars = calculateAllocationDollars(powerScore);
   const split = calculateRewardSplit(powerScore, tier);
+  const uncappedFreePlayDollars = Math.round((Math.floor(powerScore * 0.60) / 20) * 100) / 100;
+  const isFreePlayCapped = split.freePlay.dollars < uncappedFreePlayDollars;
   const powerScoreConvertedToRealReward = Math.round(split.freePlay.dollars * 20);
   const displayPoints = useCountUp(powerScore, 1200);
 
@@ -828,6 +830,12 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
           {/* ═══ Left Column: VIP Card + Share button ═══ */}
           <motion.div variants={itemVariants} className="flex-1 w-full space-y-3">
             <VIPCard ref={vipCardRef} userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
+
+            {isFreePlayCapped && (
+              <p className="text-center text-rb-muted/60 text-xs sm:text-sm font-mono leading-relaxed">
+                Freeplay reward capped at <span className="text-brand-red font-semibold">${tier.maxFreePlay.toLocaleString()}</span> for your follower tier.
+              </p>
+            )}
 
             {/* Share on X to Activate */}
             <button
