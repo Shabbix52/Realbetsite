@@ -897,9 +897,28 @@ app.post('/auth/scores', async (req, res) => {
     const silver = boxes?.find(b => b.type === 'silver') || {};
     const gold = boxes?.find(b => b.type === 'gold') || {};
 
-    // #4: Never downgrade existing points — only update a box if the new value is higher.
-    // Use RETURNING * to get the full row back so we can build an accurate Redis cache
-    // that preserves share state, discord linkage, referral bonuses, and claim info.
+    // ── FREEZE CHECK ──
+    // Once a user has revealed their gold box (first playthrough complete),
+    // scores are permanently frozen. Only referral_bonus_points (separate column)
+    // can change. This prevents any re-login, race condition, or repeated save
+    // from ever altering the original score.
+    const existingRow = await pool.query(
+      'SELECT gold_points, total_points FROM scores WHERE twitter_id = $1',
+      [twitterId]
+    );
+    if (existingRow.rows.length > 0 && existingRow.rows[0].gold_points > 0) {
+      // Scores frozen — allow username/followersCount metadata update only
+      await pool.query(
+        'UPDATE scores SET username = COALESCE($2, username), followers_count = COALESCE(NULLIF($3, 0), followers_count), updated_at = NOW() WHERE twitter_id = $1',
+        [twitterId, username || null, followersCount || 0]
+      );
+      await safeRedisDel(`scores:${twitterId}`);
+      console.log(`Scores frozen for @${username || twitterId} (gold already revealed) — metadata updated only`);
+      return res.json({ success: true, frozen: true });
+    }
+
+    // ── First playthrough — scores not yet frozen ──
+    // Use RETURNING * to get the full row back so we can build an accurate Redis cache.
     // total_points stores box_sum + task_bonus only; referral_bonus_points is added at read time.
     const upsertResult = await pool.query(
       `INSERT INTO scores (twitter_id, username, followers_count, bronze_points, bronze_tier, silver_points, silver_tier, gold_points, gold_tier, wallet_multiplier, total_points, updated_at)
