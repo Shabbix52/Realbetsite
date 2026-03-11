@@ -866,7 +866,6 @@ app.post('/auth/scores', async (req, res) => {
         }
         hmacVerifiedTypes.add(box.type);
       } else {
-        // No token — log for monitoring but allow if range check passed above.
         console.info(`ℹ️  Score accepted without token (legacy): @${username || twitterId} ${box.type}=${box.points}`);
       }
     }
@@ -968,7 +967,7 @@ app.post('/auth/scores', async (req, res) => {
         { type: 'gold', state: (row.gold_points || 0) > 0 ? 'revealed' : 'locked', points: row.gold_points || 0, tierName: row.gold_tier || null },
       ],
       walletMultiplier: parseFloat(row.wallet_multiplier) || 1,
-      totalPoints: Math.max(row.total_points || 0, cacheBoxSum) + refBonus,
+      totalPoints: Math.max(row.total_points || 0, cacheBoxSum),
     };
     await safeRedisSetEx(`scores:${twitterId}`, 86400, JSON.stringify(cacheData));
     console.log(`Scores saved for @${username || twitterId}`);
@@ -1016,7 +1015,7 @@ app.get('/auth/scores/:twitterId', async (req, res) => {
       ],
       walletMultiplier: parseFloat(row.wallet_multiplier),
       referralBonusPoints: refBonus,
-      totalPoints: Math.max(row.total_points || 0, getBoxSum) + refBonus,
+      totalPoints: Math.max(row.total_points || 0, getBoxSum),
     };
 
     await safeRedisSetEx(`scores:${twitterId}`, 86400, JSON.stringify(data));
@@ -1167,10 +1166,10 @@ async function handleConnectCallback(req, res) {
 
       const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
       const claimBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
-      const totalPoints = Math.max(row.total_points || 0, claimBoxSum) + refBonus;
+      const powerScore = Math.max(row.total_points || 0, claimBoxSum);
       const followersCount = parseInt(row.followers_count, 10) || 0;
-      const realPoints = Math.floor(totalPoints * 0.4);
-      const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
+      const realPoints = Math.floor(powerScore * 0.4) + refBonus;
+      const freePlayDollars = calculateFreePlayDollars(powerScore, followersCount);
 
       if (!BONUS_API_SECRET) {
         console.error('BONUS_API_SECRET not configured');
@@ -1181,7 +1180,7 @@ async function handleConnectCallback(req, res) {
       let hubResult = { ok: true, data: {} };
       if (realPoints > 0) {
         hubResult = await grantHubPoints(effectiveTwitterHandle, realPoints);
-        console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status} (${realPoints} pts, ${totalPoints} total)`, hubResult.data);
+        console.log(`Hub grant result for @${effectiveTwitterHandle}: ${hubResult.status} (${realPoints} pts, ${powerScore} power + ${refBonus} referral)`, hubResult.data);
 
         if (!hubResult.ok) {
           console.error('Hub API error:', hubResult.data);
@@ -1260,16 +1259,16 @@ app.post('/auth/claim', async (req, res) => {
 
       const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
       const directClaimBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
-      const totalPoints = Math.max(row.total_points || 0, directClaimBoxSum) + refBonus;
+      const powerScore = Math.max(row.total_points || 0, directClaimBoxSum);
       const followersCount = parseInt(row.followers_count, 10) || 0;
-      const realPoints = Math.floor(totalPoints * 0.4);
-      const freePlayDollars = calculateFreePlayDollars(totalPoints, followersCount);
+      const realPoints = Math.floor(powerScore * 0.4) + refBonus;
+      const freePlayDollars = calculateFreePlayDollars(powerScore, followersCount);
 
       // Grant hub points (40% of power score including referral bonus)
       let hubResult = { ok: true, data: {} };
       if (realPoints > 0) {
         hubResult = await grantHubPoints(row.username, realPoints);
-        console.log(`Hub claim result for @${row.username}: ${hubResult.status} (${realPoints} pts, ${totalPoints} total)`, hubResult.data);
+        console.log(`Hub claim result for @${row.username}: ${hubResult.status} (${realPoints} pts, ${powerScore} power + ${refBonus} referral)`, hubResult.data);
 
         if (!hubResult.ok) {
           console.error('Hub API error on direct claim:', hubResult.data);
@@ -1556,13 +1555,13 @@ app.get('/auth/leaderboard', async (req, res) => {
               silver_points,
               gold_points,
               ref_bonus AS referral_bonus_points,
-              (box_points + inferred_task_bonus + ref_bonus) AS total_points,
-              FLOOR((box_points + inferred_task_bonus + ref_bonus) * 0.4) AS real_points,
-              RANK() OVER (ORDER BY (box_points + inferred_task_bonus + ref_bonus) DESC) AS rank
+        (box_points + inferred_task_bonus) AS total_points,
+        (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) AS real_points,
+        RANK() OVER (ORDER BY (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) DESC) AS rank
        FROM scored
        WHERE box_points > 0
          AND (box_points + inferred_task_bonus) > 0
-       ORDER BY (box_points + inferred_task_bonus + ref_bonus) DESC
+      ORDER BY (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -1896,7 +1895,7 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
         SUM(total_points) AS total_points_issued,
         FLOOR(SUM(total_points) / 20) AS total_dollar_headline,
         FLOOR(SUM(total_points * 0.60 / 20)) AS total_freeplay_exposure,
-        FLOOR(SUM(total_points * 0.40)) AS total_real_points,
+        FLOOR(SUM(total_points * 0.40) + SUM(COALESCE(referral_bonus_points, 0))) AS total_real_points,
         AVG(total_points)::INTEGER AS avg_points,
         MAX(total_points) AS max_points,
         AVG(followers_count)::INTEGER AS avg_followers,
@@ -1978,7 +1977,7 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
         const referralBonusPoints = r.referral_bonus_points || 0;
         const delta = storedTotal - boxSum;
         const taskBonusPoints = delta >= 1000 ? 1000 : delta >= 500 ? 500 : 0;
-        const effectiveTotalPoints = boxSum + taskBonusPoints + referralBonusPoints;
+        const effectiveTotalPoints = boxSum + taskBonusPoints;
 
         return {
           taskBonusPoints,
@@ -1990,7 +1989,7 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
           silverPoints,
           goldPoints,
           totalPoints: effectiveTotalPoints,
-          realPoints: Math.floor(effectiveTotalPoints * 0.4),
+          realPoints: Math.floor(effectiveTotalPoints * 0.4) + referralBonusPoints,
           cashExposure: Math.round(((effectiveTotalPoints * 0.6) / 20) * 100) / 100,
           hasShared: !!r.shared_at,
           sharePostUrl: r.share_post_url || null,
@@ -2049,7 +2048,7 @@ app.get('/admin/export', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT twitter_id, username, followers_count, bronze_points, silver_points, gold_points,
-              total_points, FLOOR(total_points * 0.4) AS real_points,
+              total_points, (FLOOR(total_points * 0.4) + COALESCE(referral_bonus_points, 0)) AS real_points,
               ROUND(total_points * 0.60 / 20, 2) AS freeplay_dollars,
               share_post_url, shared_at,
               created_at, updated_at

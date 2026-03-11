@@ -402,7 +402,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
       .then(r => r.json())
       .then(data => {
         if (!data) return;
-        // Sync authoritative totalPoints from DB (includes referral bonuses, task bonuses, etc.)
+        // Sync authoritative power score from DB (box points + task bonuses only)
         if (typeof data.totalPoints === 'number' && data.totalPoints > 0 && data.totalPoints !== userData.totalPoints) {
           onUpdatePoints?.(data.totalPoints, data.followersCount ?? userData.followersCount);
         }
@@ -508,6 +508,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const tier = getTierForFollowers(userData.followersCount);
   const allocationDollars = calculateAllocationDollars(powerScore);
   const split = calculateRewardSplit(powerScore, tier);
+  const totalRealPoints = split.realPoints + referralBonusPoints;
   const uncappedFreePlayDollars = Math.round((Math.floor(powerScore * 0.60) / 20) * 100) / 100;
   const isFreePlayCapped = split.freePlay.dollars < uncappedFreePlayDollars;
   const powerScoreConvertedToRealReward = Math.round(split.freePlay.dollars * 20);
@@ -613,7 +614,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
       localStorage.removeItem('realbet_claim_result');
       if (claimResult === 'success') {
         setClaimStatus('claimed');
-        setClaimedAmount(allocationDollars);
+        setClaimedAmount(totalRealPoints);
         setAccountLinked(true);
         return;
       } else if (claimResult === 'already_claimed') {
@@ -638,7 +639,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         const data = await res.json();
         if (res.ok && (data.success || data.alreadyClaimed)) {
           setClaimStatus('claimed');
-          setClaimedAmount(data.amount || allocationDollars);
+          setClaimedAmount(data.amount || totalRealPoints);
         } else {
           setClaimError(data.error || 'Failed to claim reward');
           setClaimStatus('error');
@@ -829,7 +830,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ═══ Left Column: VIP Card + Share button ═══ */}
           <motion.div variants={itemVariants} className="flex-1 w-full space-y-3">
-            <VIPCard ref={vipCardRef} userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={split.realPoints} />
+            <VIPCard ref={vipCardRef} userData={userData} displayPoints={displayPoints} freePlayDollars={split.freePlay.dollars} realPoints={totalRealPoints} />
 
             {isFreePlayCapped && (
               <p className="text-center text-rb-muted/60 text-xs sm:text-sm font-mono leading-relaxed">
@@ -1055,11 +1056,11 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
                       <p className="text-2xl font-bold font-display text-brand-red">60%</p>
-                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">$Real Rewards</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Max $Real Rewards</p>
                     </div>
                     <div className="bg-brand-red/[0.06] border border-brand-red/[0.12] rounded-xl p-3 text-center">
                       <p className="text-2xl font-bold font-display text-brand-red">40%</p>
-                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Season 1 REAL Points</p>
+                      <p className="text-[10px] text-rb-muted/50 uppercase tracking-wider mt-1 font-label">Max Season 1 REAL Points</p>
                     </div>
                   </div>
 
@@ -1084,9 +1085,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                           <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
                           <span className="text-sm text-rb-muted/70 font-mono">Season 1 REAL Points</span>
                         </div>
-                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{totalRealPoints.toLocaleString()}</span>
                       </div>
-                      <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider text-right">1 $Real = 20 Power Score</p>
+                      <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider text-right">REAL Points = 40% of Power Score + Referral Bonus</p>
                     </div>
                   </div>
 
@@ -1214,9 +1215,9 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                           <div className="w-2 h-2 rotate-45 bg-brand-red flex-shrink-0" />
                           <span className="text-sm text-rb-muted/70 font-mono">Season 1 REAL Points</span>
                         </div>
-                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{split.realPoints.toLocaleString()}</span>
+                        <span className="text-lg font-bold font-display text-rb-muted tracking-wider">{totalRealPoints.toLocaleString()}</span>
                       </div>
-                      <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider text-right">1 $Real = 20 Power Score</p>
+                      <p className="text-rb-muted/35 text-[11px] font-mono tracking-wider text-right">REAL Points = 40% of Power Score + Referral Bonus</p>
                     </div>
                   </div>
 

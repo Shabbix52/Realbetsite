@@ -68,14 +68,12 @@ export function useOAuthPopup() {
 
   const fireCallback = useCallback((result: OAuthResult) => {
     if (firedRef.current) {
-      console.log('[OAuth] fireCallback suppressed (already fired)');
       return;
     }
     firedRef.current = true;
     if (result.success) firedSuccessRef.current = true;
     clearOAuthResult();
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    console.log(`[OAuth] ✅ Firing callback: provider=${result.provider} success=${result.success}`, result.user ? `user=${result.user.username}` : result.error || '');
     callbackRef.current?.(result);
     callbackRef.current = null;
   }, []);
@@ -96,15 +94,12 @@ export function useOAuthPopup() {
       const data = event.data;
       // Filter out noise (browser extensions, React devtools, etc.)
       if (!data || typeof data !== 'object' || !data.provider || typeof data.success !== 'boolean') return;
-      console.log('[OAuth] postMessage received:', data.provider, data.success, data.user?.username || data.error || '');
       // OVERRIDE firedRef — postMessage is authoritative, but only if previous fire was a failure.
       // If we already fired a successful result, ignore any late duplicates.
       if (firedRef.current) {
         if (firedSuccessRef.current) {
-          console.log('[OAuth] postMessage ignored — already fired with success');
           return;
         }
-        console.log('[OAuth] Late postMessage arrived — overriding previous failure');
         firedRef.current = false;
       }
       fireCallback(data as OAuthResult);
@@ -132,7 +127,6 @@ export function useOAuthPopup() {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
 
-    console.log(`[OAuth] Opening ${provider} popup...`);
     const popup = window.open(
       getApiUrl(`/auth/${provider}`),
       `${provider}-oauth`,
@@ -165,7 +159,6 @@ export function useOAuthPopup() {
       // Check localStorage on every tick (iframe fallback writes here)
       const result = readOAuthResult();
       if (result) {
-        console.log('[OAuth] Found result in localStorage:', result.provider, result.success);
         clearInterval(timer);
         timerRef.current = null;
         fireCallback(result);
@@ -182,7 +175,6 @@ export function useOAuthPopup() {
         if (!genuinelyClosed && popup.closed) {
           genuinelyClosed = true;
           closedAt = Date.now();
-          console.log('[OAuth] Popup confirmed closed (after grace period), waiting for postMessage...');
         }
       } catch {
         // Cross-origin access error — popup is still on another domain, not closed
@@ -194,7 +186,6 @@ export function useOAuthPopup() {
         timerRef.current = null;
         const finalResult = readOAuthResult();
         if (finalResult) {
-          console.log('[OAuth] Final localStorage check succeeded');
           fireCallback(finalResult);
         } else {
           console.warn('[OAuth] ❌ No result received — user likely closed the popup');

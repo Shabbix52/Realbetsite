@@ -199,8 +199,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // restored correctly when loading from DB on a new device.
         if (data.boxes && data.totalPoints) {
           const boxSum = data.boxes.reduce((s: number, b: any) => s + (b.points || 0), 0);
-          const refBonus = data.referralBonusPoints || 0;
-          const inferredBonus = Math.max(0, data.totalPoints - boxSum - refBonus);
+          const inferredBonus = Math.max(0, data.totalPoints - boxSum);
           const discordBonus = data.discordId ? 500 : 0;
           if ((inferredBonus - discordBonus) >= 500) setTasks(p => ({ ...p, follow: true }));
         }
@@ -246,8 +245,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
       if (data.totalPoints && data.boxes) {
         const boxSum = data.boxes.reduce((sum: number, box: BoxData) => sum + (box.points || 0), 0);
-        const refBonus = data.referralBonusPoints || 0;
-        const inferredBonus = Math.max(0, data.totalPoints - boxSum - refBonus);
+        const inferredBonus = Math.max(0, data.totalPoints - boxSum);
         const discordBonus = data.discordId ? 500 : 0;
         setTasks(prev => ({
           ...prev,
@@ -415,7 +413,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     if (!gold) return;
 
     if (gold.state === 'locked') {
-      console.log('[Tasks] useEffect: follow done — unlocking gold box');
       const updated = boxes.map(b => b.type === 'gold' ? { ...b, state: 'ready' as BoxState } : b);
       setBoxes(updated);
       saveBoxes(updated);
@@ -436,7 +433,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // Step 1: Authenticate with X only — follow is a separate button
         setTaskLoading('follow');
         openOAuth('twitter', (result) => {
-          console.log('[Tasks] Twitter OAuth result:', result.success, result.user?.username, result.error);
           if (result.success) {
             setTwitterVerified(true);
             if (result.user?.id) setTwitterId(result.user.id);
@@ -482,8 +478,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                     // Infer tasks.follow from total_points vs box sum
                     if (data.boxes && data.totalPoints) {
                       const boxSum = data.boxes.reduce((s: number, b: any) => s + (b.points || 0), 0);
-                      const refBonus = data.referralBonusPoints || 0;
-                      const inferredBonus = Math.max(0, data.totalPoints - boxSum - refBonus);
+                      const inferredBonus = Math.max(0, data.totalPoints - boxSum);
                       const discordBonus = data.discordId ? 500 : 0;
                       if ((inferredBonus - discordBonus) >= 500) setTasks(p => ({ ...p, follow: true }));
                     }
@@ -505,7 +500,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         // Step 1: Authenticate with Discord
         setTaskLoading('discord');
         openOAuth('discord', async (result) => {
-          console.log('[Tasks] Discord OAuth result:', result.success, result.user?.username, result.error);
           if (result.success && result.user?.id) {
             setDiscordVerified(true);
             setDiscordUserId(result.user.id);
@@ -527,7 +521,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             try {
               const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${result.user.id}?twitterId=${encodeURIComponent(twitterId || '')}`));
               const memberData = await memberRes.json();
-              console.log('[Tasks] Discord membership check:', memberData);
               if (memberData.member) {
                 setTasks(p => ({ ...p, discord: true }));
               } else {
@@ -545,7 +538,6 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
         try {
           const memberRes = await fetch(getApiUrl(`/auth/discord/check-member/${discordUserId}?twitterId=${encodeURIComponent(twitterId || '')}`));
           const memberData = await memberRes.json();
-          console.log('[Tasks] Discord membership re-check:', memberData);
           if (memberData.member) {
             setDiscordError(null);
             setTasks(p => ({ ...p, discord: true }));
