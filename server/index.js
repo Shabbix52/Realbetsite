@@ -799,11 +799,11 @@ app.get('/auth/scores/roll', async (req, res) => {
       const silverPoints = result.rows[0]?.silver_points || 0;
       const basePoints = bronzePoints + silverPoints;
 
-      // Keep power score under the tier's effective cap (derived from maxFreePlay).
-      const tierMaxPowerScore = Math.floor((tier.maxFreePlay * 20) / 0.6);
+      // Max power score = bronze(500) + silver(1000) + goldPointsMax = ptMax + 1500
+      // Gold must stay within tier range; cap only if base+task already exceeds budget.
+      const tierMaxPowerScore = tier.ptMax + 1500;
       const remainingGoldCap = Math.max(1, tierMaxPowerScore - basePoints - taskBonus);
-      const cappedMax = Math.max(1, Math.min(70_000, remainingGoldCap));
-      // Enforce tier's goldPointsMin as floor; if remaining cap is below it, clamp to cappedMax.
+      const cappedMax = Math.max(1, Math.min(tier.ptMax, remainingGoldCap));
       const cappedMin = Math.min(tier.ptMin, cappedMax);
       const points = srvRandInRange(cappedMin, cappedMax);
       const tierName = TIER_NAMES_SERVER.gold[crypto.randomInt(TIER_NAMES_SERVER.gold.length)];
@@ -855,6 +855,7 @@ app.post('/auth/scores', async (req, res) => {
     // If a token IS present it must be valid (blocks forgery).
     // If a token is absent the score is still accepted provided it passes
     // range validation above — this covers pre-token legacy sessions.
+    const hmacVerifiedTypes = new Set();
     const revealedBoxes = boxes.filter(b => b.points > 0);
     for (const box of revealedBoxes) {
       if (box.token && box.issuedAt) {
@@ -863,14 +864,18 @@ app.post('/auth/scores', async (req, res) => {
           console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
           return res.status(400).json({ error: 'Score verification failed' });
         }
+        hmacVerifiedTypes.add(box.type);
       } else {
         // No token — log for monitoring but allow if range check passed above.
         console.info(`ℹ️  Score accepted without token (legacy): @${username || twitterId} ${box.type}=${box.points}`);
       }
     }
-    // #5: Validate gold against its tier floor using DB followers_count.
+    // #5: Validate gold against its tier range using DB followers_count.
+    // Skip if the gold value was HMAC-verified — the server already issued
+    // that exact value via /auth/scores/roll (which applies freeplay capping
+    // that can legitimately produce values below tier.ptMin).
     const goldBox = boxes.find(b => b.type === 'gold');
-    if (goldBox && goldBox.points > 0) {
+    if (goldBox && goldBox.points > 0 && !hmacVerifiedTypes.has('gold')) {
       try {
         const fcRow = await pool.query('SELECT followers_count FROM scores WHERE twitter_id = $1', [twitterId]);
         let fc = fcRow.rows[0]?.followers_count || 0;
