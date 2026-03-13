@@ -760,15 +760,15 @@ function rollBoxPoints(type, followersCount) {
   return { points, tierName };
 }
 
-function generateScoreToken(twitterId, type, points, tierName, issuedAt) {
-  const payload = `${twitterId}:${type}:${points}:${tierName}:${issuedAt}`;
+function generateScoreToken(scoreSubject, type, points, tierName, issuedAt) {
+  const payload = `${scoreSubject}:${type}:${points}:${tierName}:${issuedAt}`;
   return crypto.createHmac('sha256', SCORE_SECRET).update(payload).digest('hex');
 }
 
-function verifyScoreToken(twitterId, type, points, tierName, issuedAt, token) {
+function verifyScoreToken(scoreSubject, type, points, tierName, issuedAt, token) {
   if (!token || !issuedAt) return false;
   if (Date.now() - Number(issuedAt) > TOKEN_TTL_MS) return false;
-  const expected = generateScoreToken(twitterId, type, points, tierName, issuedAt);
+  const expected = generateScoreToken(scoreSubject, type, points, tierName, issuedAt);
   try {
     const a = Buffer.from(expected, 'hex');
     const b = Buffer.from(token.slice(0, expected.length), 'hex');
@@ -790,9 +790,13 @@ function validatePoints(type, pts) {
 
 // Roll server-side points for a box and return a signed token
 app.get('/auth/scores/roll', async (req, res) => {
-  const { type, twitterId, followersCount } = req.query;
-  if (!type || !twitterId) return res.status(400).json({ error: 'type and twitterId required' });
+  const { type, twitterId, followersCount, rollSubject } = req.query;
+  if (!type) return res.status(400).json({ error: 'type required' });
   if (!['bronze', 'silver', 'gold'].includes(type)) return res.status(400).json({ error: 'Invalid box type' });
+
+  const scoreSubject = String(twitterId || rollSubject || '').trim();
+  if (!scoreSubject) return res.status(400).json({ error: 'twitterId or rollSubject required' });
+  if (type === 'gold' && !twitterId) return res.status(400).json({ error: 'twitterId required for gold roll' });
 
   // Cap gold points by remaining tier allowance so 60/40 split stays accountable.
   if (type === 'gold') {
@@ -829,8 +833,8 @@ app.get('/auth/scores/roll', async (req, res) => {
       const tierName = TIER_NAMES_SERVER.gold[crypto.randomInt(TIER_NAMES_SERVER.gold.length)];
 
       const issuedAt = Date.now();
-      const token = generateScoreToken(twitterId, type, points, tierName, issuedAt);
-      return res.json({ points, tierName, token, issuedAt });
+      const token = generateScoreToken(scoreSubject, type, points, tierName, issuedAt);
+      return res.json({ points, tierName, token, issuedAt, rollSubject: scoreSubject });
     } catch (err) {
       console.error('Gold roll cap error:', err.message);
       return res.status(500).json({ error: 'Gold roll failed' });
@@ -841,9 +845,9 @@ app.get('/auth/scores/roll', async (req, res) => {
   if (!rolled) return res.status(500).json({ error: 'Roll failed' });
 
   const issuedAt = Date.now();
-  const token = generateScoreToken(twitterId, type, rolled.points, rolled.tierName, issuedAt);
+  const token = generateScoreToken(scoreSubject, type, rolled.points, rolled.tierName, issuedAt);
 
-  res.json({ points: rolled.points, tierName: rolled.tierName, token, issuedAt });
+  res.json({ points: rolled.points, tierName: rolled.tierName, token, issuedAt, rollSubject: scoreSubject });
 });
 
 app.post('/auth/scores', async (req, res) => {
@@ -900,7 +904,10 @@ app.post('/auth/scores', async (req, res) => {
       }
 
       if (box.token && box.issuedAt) {
-        const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
+        const scoreSubject = box.type === 'gold'
+          ? twitterId
+          : String(box.rollSubject || twitterId || '').trim();
+        const valid = !!scoreSubject && verifyScoreToken(scoreSubject, box.type, box.points, box.tierName, box.issuedAt, box.token);
         if (!valid) {
           console.warn(`⚠️  Score forgery attempt: @${username || twitterId} ${box.type}=${box.points} token invalid`);
           return res.status(400).json({ error: 'Score verification failed' });

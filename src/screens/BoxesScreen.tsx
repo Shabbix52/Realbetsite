@@ -16,6 +16,7 @@ interface BoxData {
   tierName: string;
   token?: string;
   issuedAt?: number;
+  rollSubject?: string;
 }
 
 const BOX_GRADIENTS: Record<BoxType, string> = {
@@ -57,6 +58,19 @@ const STEP_LABELS: Record<SubScreen, string> = {
 
 const STORAGE_KEY = 'realbet_box_results';
 const AUTH_STATE_KEY = 'realbet_auth_state';
+const PREAUTH_ROLL_SUBJECT_KEY = 'realbet_roll_subject';
+
+function getPreauthRollSubject() {
+  try {
+    const existing = localStorage.getItem(PREAUTH_ROLL_SUBJECT_KEY);
+    if (existing) return existing;
+    const created = `anon_${crypto.randomUUID()}`;
+    localStorage.setItem(PREAUTH_ROLL_SUBJECT_KEY, created);
+    return created;
+  } catch {
+    return `anon_fallback`;
+  }
+}
 
 interface SavedAuthState {
   twitterVerified: boolean;
@@ -301,18 +315,28 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     let rolledTierName: string | null = null;
     let rolledToken: string | undefined;
     let rolledIssuedAt: number | undefined;
+    let rolledSubject: string | undefined;
 
-    if (twitterId) {
+    const rollSubject = twitterId || getPreauthRollSubject();
+
+    if (rollSubject) {
       try {
-        const rollRes = await fetch(
-          getApiUrl(`/auth/scores/roll?type=${box.type}&twitterId=${encodeURIComponent(twitterId)}&followersCount=${followersCount}&taskBonus=${currentTaskBonus}`)
-        );
+        const params = new URLSearchParams({
+          type: box.type,
+          followersCount: String(followersCount),
+          taskBonus: String(currentTaskBonus),
+        });
+        if (twitterId) params.set('twitterId', twitterId);
+        else params.set('rollSubject', rollSubject);
+
+        const rollRes = await fetch(getApiUrl(`/auth/scores/roll?${params.toString()}`));
         if (rollRes.ok) {
           const rollData = await rollRes.json();
           rolledPoints = rollData.points;
           rolledTierName = rollData.tierName;
           rolledToken = rollData.token;
           rolledIssuedAt = rollData.issuedAt;
+          rolledSubject = rollData.rollSubject;
         }
       } catch { /* handled below */ }
     }
@@ -334,6 +358,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
             tierName: rolledTierName,
             token: rolledToken,
             issuedAt: rolledIssuedAt,
+            ...(rolledSubject ? { rollSubject: rolledSubject } : {}),
           };
           // Unlock next box (bronze → silver)
           if (i === index + 1 && b.state === 'locked' && box.type === 'bronze') {
