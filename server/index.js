@@ -851,6 +851,20 @@ app.post('/auth/scores', async (req, res) => {
   const followersCount = Math.max(0, Math.min(10_000_000, Math.floor(Number(req.body.followersCount) || 0)));
   if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
 
+  let existingScoreRow = null;
+  if (boxes && Array.isArray(boxes)) {
+    try {
+      const existingScore = await pool.query(
+        'SELECT bronze_points, silver_points, gold_points, followers_count FROM scores WHERE twitter_id = $1',
+        [twitterId]
+      );
+      existingScoreRow = existingScore.rows[0] || null;
+    } catch (err) {
+      console.error('Existing score lookup error:', err.message);
+      return res.status(500).json({ error: 'Failed to validate scores' });
+    }
+  }
+
   // Server-side score validation
   if (totalPoints && (typeof totalPoints !== 'number' || totalPoints > MAX_TOTAL_POINTS || totalPoints < 0)) {
     return res.status(400).json({ error: 'Invalid total points' });
@@ -872,12 +886,19 @@ app.post('/auth/scores', async (req, res) => {
     }
 
     // #2: HMAC token verification.
-    // If a token IS present it must be valid (blocks forgery).
-    // If a token is absent the score is still accepted provided it passes
-    // range validation above — this covers pre-token legacy sessions.
+    // Any newly increased box value must carry a valid server-issued token.
+    // Replaying an already stored box value is allowed so existing sessions
+    // and DB-restored progress don't get stranded.
     const hmacVerifiedTypes = new Set();
     const revealedBoxes = boxes.filter(b => b.points > 0);
     for (const box of revealedBoxes) {
+      const storedPoints = existingScoreRow?.[`${box.type}_points`] || 0;
+      const isNewIncrease = box.points > storedPoints;
+
+      if (!isNewIncrease) {
+        continue;
+      }
+
       if (box.token && box.issuedAt) {
         const valid = verifyScoreToken(twitterId, box.type, box.points, box.tierName, box.issuedAt, box.token);
         if (!valid) {
@@ -886,7 +907,8 @@ app.post('/auth/scores', async (req, res) => {
         }
         hmacVerifiedTypes.add(box.type);
       } else {
-        console.info(`ℹ️  Score accepted without token (legacy): @${username || twitterId} ${box.type}=${box.points}`);
+        console.warn(`⚠️  Score token missing for new box value: @${username || twitterId} ${box.type}=${box.points}`);
+        return res.status(400).json({ error: 'Score verification failed' });
       }
     }
     // #5: Validate gold against its tier range using DB followers_count.
@@ -896,8 +918,7 @@ app.post('/auth/scores', async (req, res) => {
     const goldBox = boxes.find(b => b.type === 'gold');
     if (goldBox && goldBox.points > 0 && !hmacVerifiedTypes.has('gold')) {
       try {
-        const fcRow = await pool.query('SELECT followers_count FROM scores WHERE twitter_id = $1', [twitterId]);
-        let fc = fcRow.rows[0]?.followers_count || 0;
+        let fc = existingScoreRow?.followers_count || 0;
         if (fc === 0) {
           const userRow = await pool.query(
             'SELECT followers_count FROM users WHERE provider_id = $1 AND provider = $2',

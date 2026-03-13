@@ -4,7 +4,6 @@ import type { UserData } from '../App';
 import { useCountUp } from '../hooks/useCountUp';
 import { useOAuthPopup } from '../hooks/useOAuthPopup';
 import { getApiUrl } from '../config';
-import { getTierForFollowers } from '../tierConfig';
 
 type BoxType = 'bronze' | 'silver' | 'gold';
 type BoxState = 'locked' | 'ready' | 'opening' | 'revealed';
@@ -19,22 +18,10 @@ interface BoxData {
   issuedAt?: number;
 }
 
-const TIER_NAMES: Record<BoxType, string[]> = {
-  bronze: ['Pit Boss Prospect', 'Table Rookie', 'Chip Stacker', 'House Hopeful'],
-  silver: ['High Roller', 'VIP Candidate', 'Felt Walker', 'Card Counter'],
-  gold: ['House Legend', 'Whale Status', 'Inner Circle', 'The Chosen'],
-};
-
 const BOX_GRADIENTS: Record<BoxType, string> = {
   bronze: 'linear-gradient(145deg, #8B6E4E 0%, #6B4E34 40%, #4A3728 100%)',
   silver: 'linear-gradient(145deg, #9CA0A8 0%, #6B7080 40%, #4A4E5A 100%)',
   gold: 'linear-gradient(145deg, #F6C34A 0%, #C9982E 40%, #8B6914 100%)',
-};
-
-const BOX_POINTS: Record<BoxType, [number, number]> = {
-  bronze: [100, 500],
-  silver: [500, 1000],
-  gold: [0, 0], // Gold is deterministic per follower tier — see getTierForFollowers
 };
 
 const BOX_TITLE_COLORS: Record<BoxType, string> = {
@@ -67,14 +54,6 @@ const STEP_LABELS: Record<SubScreen, string> = {
   'gold-pre': 'Gold Box',
   'gold-reveal': 'Reveal',
 };
-
-function randomInRange(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
 
 const STORAGE_KEY = 'realbet_box_results';
 const AUTH_STATE_KEY = 'realbet_auth_state';
@@ -159,6 +138,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const [taskLoading, setTaskLoading] = useState<string | null>(null);
   const [followVerifying, setFollowVerifying] = useState<boolean>(false);
   const [discordError, setDiscordError] = useState<string | null>(null);
+  const [boxError, setBoxError] = useState<string | null>(null);
   const [allDone, setAllDone] = useState(() => {
     const gold = initialBoxes.find(b => b.type === 'gold');
     return gold?.state === 'revealed';
@@ -311,6 +291,7 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
     const box = boxes[index];
     if (box.state !== 'ready') return;
     const currentTaskBonus = (tasks.follow ? TASK_BONUS : 0) + (tasks.discord ? TASK_BONUS : 0);
+    setBoxError(null);
 
     // Start shake animation immediately
     setBoxes(prev => prev.map((b, i) => i === index ? { ...b, state: 'opening' } : b));
@@ -333,41 +314,26 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           rolledToken = rollData.token;
           rolledIssuedAt = rollData.issuedAt;
         }
-      } catch { /* fall back to local random below */ }
+      } catch { /* handled below */ }
     }
 
     // After animation completes, reveal
     setTimeout(() => {
-      let points: number;
-      let tierName: string;
-
-      if (rolledPoints !== null && rolledTierName !== null) {
-        // Use server-generated + signed values
-        points = rolledPoints;
-        tierName = rolledTierName;
-      } else {
-        // Fallback: local random (no token; range validation still applies on submit)
-        if (box.type === 'gold') {
-          const tier = getTierForFollowers(followersCount);
-          const basePoints = boxes
-            .filter(b => b.type !== 'gold')
-            .reduce((sum, b) => sum + (b.points || 0), 0);
-          const remainingGoldCap = Math.max(1, tier.maxPowerScore - basePoints - currentTaskBonus);
-          const cappedMax = Math.max(1, Math.min(tier.goldPointsMax, remainingGoldCap));
-          const cappedMin = Math.min(tier.goldPointsMin, cappedMax);
-          points = randomInRange(cappedMin, cappedMax);
-        } else {
-          const [min, max] = BOX_POINTS[box.type];
-          points = randomInRange(min, max);
-        }
-        tierName = pickRandom(TIER_NAMES[box.type]);
+      if (rolledPoints === null || rolledTierName === null || !rolledToken || !rolledIssuedAt) {
+        setBoxes(prev => prev.map((b, i) => i === index ? { ...b, state: 'ready' } : b));
+        setBoxError('Box roll failed. Please try again.');
+        return;
       }
 
       setBoxes(prev => {
         const updated = prev.map((b, i) => {
           if (i === index) return {
-            ...b, state: 'revealed' as BoxState, points, tierName,
-            ...(rolledToken ? { token: rolledToken, issuedAt: rolledIssuedAt } : {}),
+            ...b,
+            state: 'revealed' as BoxState,
+            points: rolledPoints,
+            tierName: rolledTierName,
+            token: rolledToken,
+            issuedAt: rolledIssuedAt,
           };
           // Unlock next box (bronze → silver)
           if (i === index + 1 && b.state === 'locked' && box.type === 'bronze') {
@@ -656,6 +622,12 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
                 </p>
                 <p>Open all three. The House is keeping track.</p>
               </div>
+
+              {boxError && (
+                <p className="text-sm text-red-400/85 font-label tracking-wide mb-6 sm:mb-8">
+                  {boxError}
+                </p>
+              )}
 
               {/* Boxes Grid — only bronze & silver */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-10">
