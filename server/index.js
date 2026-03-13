@@ -373,14 +373,14 @@ async function grantHubReal(twitterHandle, realDollars, metadata = {}) {
 }
 
 /**
- * Serialize claims per user so duplicate requests can't grant twice.
- * Uses a transaction-scoped advisory lock keyed by twitterId.
+ * Run work inside a transaction-scoped advisory lock.
+ * Keeps concurrent requests for the same logical resource from interleaving.
  */
-async function withClaimLock(twitterId, work) {
+async function withAdvisoryLock(lockKey, work) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`claim:${twitterId}`]);
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
     const result = await work(client);
     await client.query('COMMIT');
     return result;
@@ -390,6 +390,26 @@ async function withClaimLock(twitterId, work) {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Serialize claims per user so duplicate requests can't grant twice.
+ * Uses a transaction-scoped advisory lock keyed by twitterId.
+ */
+async function withClaimLock(twitterId, work) {
+  return withAdvisoryLock(`claim:${twitterId}`, work);
+}
+
+async function withScoreLock(twitterId, work) {
+  return withAdvisoryLock(`scores:${twitterId}`, work);
+}
+
+async function withReferralApplyLock(twitterId, work) {
+  return withAdvisoryLock(`referral:${twitterId}`, work);
+}
+
+async function withShareUrlLock(url, work) {
+  return withAdvisoryLock(`share:${url}`, work);
 }
 
 // ─────────────────────────────────────────────
@@ -901,52 +921,56 @@ app.post('/auth/scores', async (req, res) => {
     const silver = boxes?.find(b => b.type === 'silver') || {};
     const gold = boxes?.find(b => b.type === 'gold') || {};
 
-    // ── FREEZE CHECK ──
-    // Once a user has revealed their gold box (first playthrough complete),
-    // scores are permanently frozen. Only referral_bonus_points (separate column)
-    // can change. This prevents any re-login, race condition, or repeated save
-    // from ever altering the original score.
-    const existingRow = await pool.query(
-      'SELECT gold_points, total_points FROM scores WHERE twitter_id = $1',
-      [twitterId]
-    );
-    if (existingRow.rows.length > 0 && existingRow.rows[0].gold_points > 0) {
-      // Scores frozen — keep the original follower tier snapshot intact.
-      await pool.query(
-        'UPDATE scores SET username = COALESCE($2, username), updated_at = NOW() WHERE twitter_id = $1',
-        [twitterId, username || null]
+    const outcome = await withScoreLock(twitterId, async (client) => {
+      // ── FREEZE CHECK ──
+      // Once a user has revealed their gold box (first playthrough complete),
+      // scores are permanently frozen. Only referral_bonus_points (separate column)
+      // can change. This prevents any re-login, race condition, or repeated save
+      // from ever altering the original score.
+      const existingRow = await client.query(
+        'SELECT gold_points FROM scores WHERE twitter_id = $1 FOR UPDATE',
+        [twitterId]
       );
+      if (existingRow.rows.length > 0 && existingRow.rows[0].gold_points > 0) {
+        await client.query(
+          'UPDATE scores SET username = COALESCE($2, username), updated_at = NOW() WHERE twitter_id = $1',
+          [twitterId, username || null]
+        );
+        return { frozen: true };
+      }
+
+      const upsertResult = await client.query(
+        `INSERT INTO scores (twitter_id, username, followers_count, bronze_points, bronze_tier, silver_points, silver_tier, gold_points, gold_tier, wallet_multiplier, total_points, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+         ON CONFLICT (twitter_id) DO UPDATE SET
+           username = $2, followers_count = $3,
+           bronze_points = GREATEST(scores.bronze_points, $4), bronze_tier = CASE WHEN $4 > scores.bronze_points THEN $5 ELSE scores.bronze_tier END,
+           silver_points = GREATEST(scores.silver_points, $6), silver_tier = CASE WHEN $6 > scores.silver_points THEN $7 ELSE scores.silver_tier END,
+           gold_points   = GREATEST(scores.gold_points,   $8), gold_tier   = CASE WHEN $8 > scores.gold_points   THEN $9 ELSE scores.gold_tier   END,
+           wallet_multiplier = $10,
+           total_points = GREATEST(scores.total_points, $11),
+           updated_at = NOW()
+         RETURNING *`,
+        [
+          twitterId, username || null, followersCount || 0,
+          bronze.points || 0, bronze.tierName || null,
+          silver.points || 0, silver.tierName || null,
+          gold.points || 0, gold.tierName || null,
+          walletMultiplier || 1, totalPoints || 0
+        ]
+      );
+
+      return { frozen: false, row: upsertResult.rows[0] };
+    });
+
+    if (outcome.frozen) {
       await safeRedisDel(`scores:${twitterId}`);
       console.log(`Scores frozen for @${username || twitterId} (gold already revealed) — follower tier locked`);
       return res.json({ success: true, frozen: true });
     }
 
-    // ── First playthrough — scores not yet frozen ──
-    // Use RETURNING * to get the full row back so we can build an accurate Redis cache.
-    // total_points stores box_sum + task_bonus only; referral_bonus_points is added at read time.
-    const upsertResult = await pool.query(
-      `INSERT INTO scores (twitter_id, username, followers_count, bronze_points, bronze_tier, silver_points, silver_tier, gold_points, gold_tier, wallet_multiplier, total_points, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-       ON CONFLICT (twitter_id) DO UPDATE SET
-         username = $2, followers_count = $3,
-         bronze_points = GREATEST(scores.bronze_points, $4), bronze_tier = CASE WHEN $4 > scores.bronze_points THEN $5 ELSE scores.bronze_tier END,
-         silver_points = GREATEST(scores.silver_points, $6), silver_tier = CASE WHEN $6 > scores.silver_points THEN $7 ELSE scores.silver_tier END,
-         gold_points   = GREATEST(scores.gold_points,   $8), gold_tier   = CASE WHEN $8 > scores.gold_points   THEN $9 ELSE scores.gold_tier   END,
-         wallet_multiplier = $10,
-         total_points = GREATEST(scores.total_points, $11),
-         updated_at = NOW()
-       RETURNING *`,
-      [
-        twitterId, username || null, followersCount || 0,
-        bronze.points || 0, bronze.tierName || null,
-        silver.points || 0, silver.tierName || null,
-        gold.points || 0, gold.tierName || null,
-        walletMultiplier || 1, totalPoints || 0
-      ]
-    );
-
     // Build cache from the actual DB row so share state, discord, referral, and claim info are preserved.
-    const row = upsertResult.rows[0];
+    const row = outcome.row;
     const refBonus = parseInt(row.referral_bonus_points, 10) || 0;
     const cacheBoxSum = (row.bronze_points || 0) + (row.silver_points || 0) + (row.gold_points || 0);
     const cacheData = {
@@ -1460,30 +1484,43 @@ app.post('/auth/share', async (req, res) => {
     return res.status(400).json({ error: 'Invalid post URL — must be a full x.com/username/status/id link' });
   }
 
-  // Reject duplicate: same tweet URL already used by a different user
-  if (url) {
-    try {
-      const dup = await pool.query(
-        `SELECT twitter_id FROM scores WHERE share_post_url = $1 AND twitter_id != $2 LIMIT 1`,
-        [url, twitterId]
-      );
-      if (dup.rows.length > 0) {
+  try {
+    if (url) {
+      const outcome = await withShareUrlLock(url, async (client) => {
+        const dup = await client.query(
+          `SELECT twitter_id FROM scores WHERE share_post_url = $1 AND twitter_id != $2 LIMIT 1`,
+          [url, twitterId]
+        );
+        if (dup.rows.length > 0) {
+          return { conflict: true };
+        }
+
+        await client.query(
+          `INSERT INTO scores (twitter_id, share_post_url, shared_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (twitter_id) DO UPDATE SET
+             share_post_url = COALESCE($2, scores.share_post_url),
+             shared_at = COALESCE(scores.shared_at, NOW())`,
+          [twitterId, url]
+        );
+
+        return { conflict: false };
+      });
+
+      if (outcome.conflict) {
         return res.status(409).json({ error: 'This post link has already been used by another user' });
       }
-    } catch (e) {
-      console.error('Duplicate share check error:', e.message);
+    } else {
+      await pool.query(
+        `INSERT INTO scores (twitter_id, share_post_url, shared_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (twitter_id) DO UPDATE SET
+           share_post_url = COALESCE($2, scores.share_post_url),
+           shared_at = COALESCE(scores.shared_at, NOW())`,
+        [twitterId, url]
+      );
     }
-  }
 
-  try {
-    await pool.query(
-      `INSERT INTO scores (twitter_id, share_post_url, shared_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (twitter_id) DO UPDATE SET
-         share_post_url = COALESCE($2, scores.share_post_url),
-         shared_at = COALESCE(scores.shared_at, NOW())`,
-      [twitterId, url]
-    );
     await safeRedisDel(`scores:${twitterId}`);
     res.json({ success: true });
   } catch (err) {
@@ -1525,7 +1562,6 @@ app.get('/auth/leaderboard', async (req, res) => {
   const offset = parseInt(req.query.offset) || 0;
 
   try {
-    // Try cache for page 1
     if (offset === 0 && limit <= 100) {
       const cached = await safeRedisGet('leaderboard:top100');
       if (cached) return res.json(JSON.parse(cached));
@@ -1555,13 +1591,13 @@ app.get('/auth/leaderboard', async (req, res) => {
               silver_points,
               gold_points,
               ref_bonus AS referral_bonus_points,
-        (box_points + inferred_task_bonus) AS total_points,
-        (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) AS real_points,
-        RANK() OVER (ORDER BY (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) DESC) AS rank
+              (box_points + inferred_task_bonus) AS total_points,
+              (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) AS real_points,
+              RANK() OVER (ORDER BY (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) DESC) AS rank
        FROM scored
        WHERE box_points > 0
          AND (box_points + inferred_task_bonus) > 0
-      ORDER BY (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) DESC
+       ORDER BY (FLOOR((box_points + inferred_task_bonus) * 0.4) + ref_bonus) DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -1602,7 +1638,6 @@ app.get('/auth/leaderboard', async (req, res) => {
       offset,
     };
 
-    // Cache first page for 2 minutes
     if (offset === 0 && limit <= 100) {
       await safeRedisSetEx('leaderboard:top100', 120, JSON.stringify(data));
     }
@@ -1622,23 +1657,19 @@ const REFERRAL_BONUS_REFERRER = 50; // Points awarded to referrer per successful
 const REFERRAL_BONUS_REFERRED = 0;  // Points awarded to the referred user
 const MAX_REFERRAL_BONUS = 25000;     // Cap total referral bonus per user
 
-// Generate a unique referral code from twitter_id
 function generateReferralCode(twitterId) {
   const hash = crypto.createHash('sha256').update(twitterId + 'realbet-ref-salt').digest('hex');
   return 'RB' + hash.substring(0, 6).toUpperCase();
 }
 
-// Get or create referral code for a user + stats
 app.get('/auth/referral/:twitterId', async (req, res) => {
   const { twitterId } = req.params;
   if (!twitterId) return res.status(400).json({ error: 'twitterId required' });
 
   try {
-    // Try cache first
     const cached = await safeRedisGet(`referral:${twitterId}`);
     if (cached) return res.json(JSON.parse(cached));
 
-    // Check if user already has a referral code
     let result = await pool.query(
       'SELECT referral_code, referral_bonus_points, referral_count, referred_by FROM scores WHERE twitter_id = $1',
       [twitterId]
@@ -1655,14 +1686,12 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
       referralCount = result.rows[0].referral_count || 0;
       referredBy = result.rows[0].referred_by || null;
     } else if (result.rows.length > 0) {
-      // Row exists but no referral code — generate and store
       referralCode = generateReferralCode(twitterId);
       await pool.query(
         `UPDATE scores SET referral_code = $2 WHERE twitter_id = $1`,
         [twitterId, referralCode]
       );
     } else {
-      // No scores row at all — create one with just the referral code
       referralCode = generateReferralCode(twitterId);
       await pool.query(
         `INSERT INTO scores (twitter_id, referral_code) VALUES ($1, $2) ON CONFLICT (twitter_id) DO UPDATE SET referral_code = $2`,
@@ -1670,7 +1699,6 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
       );
     }
 
-    // Get list of referred users
     const referrals = await pool.query(
       `SELECT r.referred_twitter_id, r.referrer_bonus, r.status, r.created_at, r.converted_at,
               s.username, s.total_points
@@ -1700,7 +1728,6 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
       })),
     };
 
-    // Cache for 5 minutes
     await safeRedisSetEx(`referral:${twitterId}`, 300, JSON.stringify(data));
     res.json(data);
   } catch (err) {
@@ -1709,64 +1736,55 @@ app.get('/auth/referral/:twitterId', async (req, res) => {
   }
 });
 
-// Apply a referral code — new users only (first sign-up)
 app.post('/auth/referral/apply', async (req, res) => {
   const { twitterId, referralCode, username } = req.body;
   if (!twitterId || !referralCode) return res.status(400).json({ error: 'twitterId and referralCode required' });
 
   try {
-    // Block existing users — only allow referral on very first sign-up
-    const userRecord = await pool.query(
-      'SELECT login_count FROM users WHERE provider = $1 AND provider_id = $2',
-      ['twitter', twitterId]
-    );
-    if (userRecord.rows.length > 0 && userRecord.rows[0].login_count > 1) {
-      return res.status(400).json({ error: 'Referral codes can only be used on your first sign-up' });
-    }
+    const outcome = await withReferralApplyLock(twitterId, async (client) => {
+      const userRecord = await client.query(
+        'SELECT login_count FROM users WHERE provider = $1 AND provider_id = $2',
+        ['twitter', twitterId]
+      );
+      if (userRecord.rows.length > 0 && userRecord.rows[0].login_count > 1) {
+        return { status: 400, body: { error: 'Referral codes can only be used on your first sign-up' } };
+      }
 
-    // Check if user already used a referral code
-    const existing = await pool.query(
-      'SELECT referred_by FROM scores WHERE twitter_id = $1',
-      [twitterId]
-    );
-    if (existing.rows.length > 0 && existing.rows[0].referred_by) {
-      return res.status(400).json({ error: 'Already used a referral code' });
-    }
+      const existing = await client.query(
+        'SELECT referred_by FROM scores WHERE twitter_id = $1 FOR UPDATE',
+        [twitterId]
+      );
+      if (existing.rows.length > 0 && existing.rows[0].referred_by) {
+        return { status: 400, body: { error: 'Already used a referral code' } };
+      }
 
-    // Look up the referrer by their code
-    const referrer = await pool.query(
-      'SELECT twitter_id, username, referral_bonus_points, referral_count FROM scores WHERE referral_code = $1',
-      [referralCode.toUpperCase()]
-    );
-    if (referrer.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid referral code' });
-    }
+      const referrer = await client.query(
+        'SELECT twitter_id, username, referral_bonus_points FROM scores WHERE referral_code = $1 FOR UPDATE',
+        [referralCode.toUpperCase()]
+      );
+      if (referrer.rows.length === 0) {
+        return { status: 404, body: { error: 'Invalid referral code' } };
+      }
 
-    const referrerRow = referrer.rows[0];
+      const referrerRow = referrer.rows[0];
+      if (referrerRow.twitter_id === twitterId) {
+        return { status: 400, body: { error: 'Cannot use your own referral code' } };
+      }
 
-    // Can't refer yourself
-    if (referrerRow.twitter_id === twitterId) {
-      return res.status(400).json({ error: 'Cannot use your own referral code' });
-    }
+      const currentBonus = referrerRow.referral_bonus_points || 0;
+      const referrerBonus = Math.max(0, Math.min(REFERRAL_BONUS_REFERRER, MAX_REFERRAL_BONUS - currentBonus));
 
-    // Check referrer hasn't hit the bonus cap
-    const currentBonus = referrerRow.referral_bonus_points || 0;
-    const referrerBonus = Math.min(REFERRAL_BONUS_REFERRER, MAX_REFERRAL_BONUS - currentBonus);
-
-    // Begin transaction
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Insert referral record
-      await client.query(
+      const insertReferral = await client.query(
         `INSERT INTO referrals (referrer_twitter_id, referred_twitter_id, referral_code, referrer_bonus, referred_bonus, status, converted_at)
          VALUES ($1, $2, $3, $4, $5, 'converted', NOW())
-         ON CONFLICT (referred_twitter_id) DO NOTHING`,
+         ON CONFLICT (referred_twitter_id) DO NOTHING
+         RETURNING id`,
         [referrerRow.twitter_id, twitterId, referralCode.toUpperCase(), referrerBonus, REFERRAL_BONUS_REFERRED]
       );
+      if (insertReferral.rows.length === 0) {
+        return { status: 400, body: { error: 'Already used a referral code' } };
+      }
 
-      // #3: Atomic cap — use LEAST() in the UPDATE so a race condition cannot exceed MAX_REFERRAL_BONUS.
       if (referrerBonus > 0) {
         await client.query(
           `UPDATE scores SET
@@ -1786,70 +1804,74 @@ app.post('/auth/referral/apply', async (req, res) => {
         );
       }
 
-      // Update referred user: mark who referred them + add their bonus (referral pts stay separate from total_points)
       await client.query(
         `INSERT INTO scores (twitter_id, username, referred_by, referral_bonus_points, total_points, referral_code)
          VALUES ($1, $4, $2, $3, 0, $5)
          ON CONFLICT (twitter_id) DO UPDATE SET
-           referred_by = $2,
-           referral_bonus_points = COALESCE(scores.referral_bonus_points, 0) + $3,
+           referred_by = COALESCE(scores.referred_by, $2),
+           referral_bonus_points = CASE
+             WHEN scores.referred_by IS NULL THEN COALESCE(scores.referral_bonus_points, 0) + $3
+             ELSE scores.referral_bonus_points
+           END,
            updated_at = NOW()`,
         [twitterId, referrerRow.twitter_id, REFERRAL_BONUS_REFERRED, username || null, generateReferralCode(twitterId)]
       );
 
-      await client.query('COMMIT');
-
-      // Invalidate caches
-      await safeRedisDel(`referral:${referrerRow.twitter_id}`);
-      await safeRedisDel(`referral:${twitterId}`);
-      await safeRedisDel(`scores:${referrerRow.twitter_id}`);
-      await safeRedisDel(`scores:${twitterId}`);
-      await safeRedisDel('leaderboard:top100');
-
-      console.log(`Referral: @${username || twitterId} used code ${referralCode} from @${referrerRow.username}. Referrer bonus: ${referrerBonus}, Referred bonus: ${REFERRAL_BONUS_REFERRED}`);
-
-      // Grant referral bonus to hub immediately (non-blocking)
-      let hubGranted = false;
-      if (referrerBonus > 0 && BONUS_API_SECRET && referrerRow.username) {
-        try {
-          const hubResult = await grantHubPoints(referrerRow.username, referrerBonus);
-          console.log(`Hub referral grant for @${referrerRow.username}: ${hubResult.status} (+${referrerBonus} pts)`, hubResult.data);
-          hubGranted = hubResult.ok;
-          if (!hubResult.ok) {
-            console.error('Hub referral grant failed (non-blocking):', hubResult.data);
-          }
-        } catch (hubErr) {
-          console.error('Hub referral grant error (non-blocking):', hubErr.message);
-        }
-      }
-      if (REFERRAL_BONUS_REFERRED > 0 && BONUS_API_SECRET && username) {
-        try {
-          const hubResult = await grantHubPoints(username, REFERRAL_BONUS_REFERRED);
-          console.log(`Hub referred grant for @${username}: ${hubResult.status} (+${REFERRAL_BONUS_REFERRED} pts)`, hubResult.data);
-          if (!hubResult.ok) {
-            console.error('Hub referred grant failed (non-blocking):', hubResult.data);
-          }
-        } catch (hubErr) {
-          console.error('Hub referred grant error (non-blocking):', hubErr.message);
-        }
-      }
-
-      res.json({
-        success: true,
-        referrerBonus,
-        referredBonus: REFERRAL_BONUS_REFERRED,
+      return {
+        status: 200,
+        body: {
+          success: true,
+          referrerBonus,
+          referredBonus: REFERRAL_BONUS_REFERRED,
+          referrerUsername: referrerRow.username,
+          hubGranted: false,
+        },
+        referrerTwitterId: referrerRow.twitter_id,
         referrerUsername: referrerRow.username,
-        hubGranted,
-      });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+        referrerBonus,
+      };
+    });
+
+    if (outcome.status !== 200) {
+      return res.status(outcome.status).json(outcome.body);
     }
+
+    await safeRedisDel(`referral:${outcome.referrerTwitterId}`);
+    await safeRedisDel(`referral:${twitterId}`);
+    await safeRedisDel(`scores:${outcome.referrerTwitterId}`);
+    await safeRedisDel(`scores:${twitterId}`);
+    await safeRedisDel('leaderboard:top100');
+
+    console.log(`Referral: @${username || twitterId} used code ${referralCode} from @${outcome.referrerUsername}. Referrer bonus: ${outcome.referrerBonus}, Referred bonus: ${REFERRAL_BONUS_REFERRED}`);
+
+    let hubGranted = false;
+    if (outcome.referrerBonus > 0 && BONUS_API_SECRET && outcome.referrerUsername) {
+      try {
+        const hubResult = await grantHubPoints(outcome.referrerUsername, outcome.referrerBonus);
+        console.log(`Hub referral grant for @${outcome.referrerUsername}: ${hubResult.status} (+${outcome.referrerBonus} pts)`, hubResult.data);
+        hubGranted = hubResult.ok;
+        if (!hubResult.ok) {
+          console.error('Hub referral grant failed (non-blocking):', hubResult.data);
+        }
+      } catch (hubErr) {
+        console.error('Hub referral grant error (non-blocking):', hubErr.message);
+      }
+    }
+    if (REFERRAL_BONUS_REFERRED > 0 && BONUS_API_SECRET && username) {
+      try {
+        const hubResult = await grantHubPoints(username, REFERRAL_BONUS_REFERRED);
+        console.log(`Hub referred grant for @${username}: ${hubResult.status} (+${REFERRAL_BONUS_REFERRED} pts)`, hubResult.data);
+        if (!hubResult.ok) {
+          console.error('Hub referred grant failed (non-blocking):', hubResult.data);
+        }
+      } catch (hubErr) {
+        console.error('Hub referred grant error (non-blocking):', hubErr.message);
+      }
+    }
+
+    res.json({ ...outcome.body, hubGranted });
   } catch (err) {
     console.error('Referral apply error:', err.message);
-    // Avoid double-sending — check if response was already sent
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to apply referral code' });
     }
