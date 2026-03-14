@@ -5,8 +5,27 @@ interface HeroScreenProps {
   onGenerate: () => void;
 }
 
+const HERO_EMBERS = [
+  { id: 0, delay: 0, x: 14, size: 2.4, hue: 357, yFactor: 0.54, xDrift: 34, duration: 6.2 },
+  { id: 1, delay: 0.6, x: 23, size: 3.1, hue: 364, yFactor: 0.66, xDrift: -28, duration: 7.1 },
+  { id: 2, delay: 1.2, x: 31, size: 2.8, hue: 360, yFactor: 0.58, xDrift: 22, duration: 5.8 },
+  { id: 3, delay: 1.8, x: 41, size: 4.1, hue: 371, yFactor: 0.74, xDrift: -36, duration: 7.8 },
+  { id: 4, delay: 2.4, x: 53, size: 2.3, hue: 355, yFactor: 0.62, xDrift: 18, duration: 6.4 },
+  { id: 5, delay: 3, x: 62, size: 3.4, hue: 366, yFactor: 0.69, xDrift: -24, duration: 8.1 },
+  { id: 6, delay: 3.6, x: 71, size: 2.7, hue: 359, yFactor: 0.57, xDrift: 26, duration: 6.9 },
+  { id: 7, delay: 4.2, x: 79, size: 3.8, hue: 373, yFactor: 0.76, xDrift: -30, duration: 7.4 },
+  { id: 8, delay: 4.8, x: 87, size: 2.2, hue: 356, yFactor: 0.51, xDrift: 16, duration: 5.9 },
+  { id: 9, delay: 5.4, x: 47, size: 3.3, hue: 362, yFactor: 0.64, xDrift: -20, duration: 7.2 },
+];
+
+const HERO_SCAN_LINES = [
+  { top: '25%', delay: 2, repeatDelay: 9 },
+  { top: '55%', delay: 6, repeatDelay: 12 },
+  { top: '78%', delay: 10, repeatDelay: 14 },
+];
+
 /* ── Floating ember particle ── */
-const Ember = ({ delay, x, size }: { delay: number; x: number; size: number }) => (
+const Ember = ({ delay, x, size, hue, yFactor, xDrift, duration }: { delay: number; x: number; size: number; hue: number; yFactor: number; xDrift: number; duration: number }) => (
   <motion.div
     className="absolute rounded-full pointer-events-none"
     style={{
@@ -14,18 +33,18 @@ const Ember = ({ delay, x, size }: { delay: number; x: number; size: number }) =
       height: size,
       left: `${x}%`,
       bottom: '-5%',
-      background: `radial-gradient(circle, hsl(${355 + Math.random() * 20} 90% 55% / 0.9), transparent)`,
+      background: `radial-gradient(circle, hsl(${hue} 90% 55% / 0.9), transparent)`,
       filter: `blur(${size < 3 ? 0 : 1}px)`,
     }}
     initial={{ y: 0, opacity: 0, scale: 0 }}
     animate={{
-      y: [0, -window.innerHeight * (0.5 + Math.random() * 0.5)],
-      x: [0, (Math.random() - 0.5) * 120],
+      y: [0, -(typeof window !== 'undefined' ? window.innerHeight : 900) * yFactor],
+      x: [0, xDrift],
       opacity: [0, 0.8, 0.8, 0],
       scale: [0, 1, 1, 0.3],
     }}
     transition={{
-      duration: 5 + Math.random() * 4,
+      duration,
       delay,
       repeat: Infinity,
       ease: 'easeOut',
@@ -34,13 +53,13 @@ const Ember = ({ delay, x, size }: { delay: number; x: number; size: number }) =
 );
 
 /* ── Animated horizontal line ── */
-const ScanLine = ({ top, delay }: { top: string; delay: number }) => (
+const ScanLine = ({ top, delay, repeatDelay }: { top: string; delay: number; repeatDelay: number }) => (
   <motion.div
     className="absolute left-0 w-full pointer-events-none z-[9]"
     style={{ top, height: '1px' }}
     initial={{ scaleX: 0, opacity: 0 }}
     animate={{ scaleX: 1, opacity: [0, 0.3, 0] }}
-    transition={{ duration: 3, delay, repeat: Infinity, repeatDelay: 8 + Math.random() * 6, ease: 'easeInOut' }}
+    transition={{ duration: 3, delay, repeat: Infinity, repeatDelay, ease: 'easeInOut' }}
   >
     <div className="w-full h-full bg-gradient-to-r from-transparent via-brand-red/40 to-transparent" />
   </motion.div>
@@ -82,32 +101,26 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
     }, 1500);
   };
 
-  // Generate embers
-  const embers = Array.from({ length: 18 }, (_, i) => ({
-    id: i,
-    delay: i * 0.6,
-    x: 10 + Math.random() * 80,
-    size: 2 + Math.random() * 4,
-  }));
-
   return (
     <section className="relative h-screen flex items-center justify-start px-6 md:px-16 lg:px-24 section-hero-atmosphere overflow-hidden">
 
       {/* ── Floating embers ── */}
-      <div className="absolute inset-0 z-[6] pointer-events-none overflow-hidden">
-        {embers.map((e) => (
-          <Ember key={e.id} delay={e.delay} x={e.x} size={e.size} />
+      <div className="absolute inset-0 z-[6] pointer-events-none overflow-hidden hidden md:block">
+        {HERO_EMBERS.map((e) => (
+          <Ember key={e.id} delay={e.delay} x={e.x} size={e.size} hue={e.hue} yFactor={e.yFactor} xDrift={e.xDrift} duration={e.duration} />
         ))}
       </div>
 
       {/* ── Scan lines ── */}
-      <ScanLine top="25%" delay={2} />
-      <ScanLine top="55%" delay={6} />
-      <ScanLine top="78%" delay={10} />
+      {HERO_SCAN_LINES.map((line) => (
+        <div key={line.top} className="hidden md:block">
+          <ScanLine top={line.top} delay={line.delay} repeatDelay={line.repeatDelay} />
+        </div>
+      ))}
 
       {/* ── Animated red spotlight sweep ── */}
       <motion.div
-        className="absolute inset-0 z-[5] pointer-events-none"
+        className="absolute inset-0 z-[5] pointer-events-none hidden md:block"
         initial={{ opacity: 0 }}
         animate={{ opacity: [0, 0.15, 0] }}
         transition={{ duration: 6, delay: 1, repeat: Infinity, repeatDelay: 4, ease: 'easeInOut' }}
@@ -116,7 +129,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
         }}
       />
       <motion.div
-        className="absolute inset-0 z-[5] pointer-events-none"
+        className="absolute inset-0 z-[5] pointer-events-none hidden lg:block"
         animate={{
           background: [
             'radial-gradient(ellipse 30% 50% at 20% 60%, hsl(355 83% 41% / 0.08), transparent 70%)',
@@ -145,7 +158,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
           style={{
             background: 'radial-gradient(ellipse 50% 60% at 50% 60%, hsl(355 83% 30% / 0.3), transparent 70%)',
-            filter: 'blur(40px)',
+            filter: 'blur(28px)',
           }}
         />
         <img
@@ -272,8 +285,8 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           {'The house doesn\'t wait. Neither should you.'.split(' ').map((word, i) => (
             <motion.span
               key={i}
-              initial={{ opacity: 0, filter: 'blur(4px)' }}
-              animate={{ opacity: 1, filter: 'blur(0px)' }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 1.7 + i * 0.06 }}
               className="inline-block mr-[0.3em]"
             >
@@ -284,8 +297,8 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           {'Three boxes. One Power Score. The higher you score, the bigger your Season 1 allocation.'.split(' ').map((word, i) => (
             <motion.span
               key={`l2-${i}`}
-              initial={{ opacity: 0, filter: 'blur(4px)' }}
-              animate={{ opacity: 1, filter: 'blur(0px)' }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 2.3 + i * 0.05 }}
               className="inline-block mr-[0.3em]"
             >
@@ -303,25 +316,25 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
         >
           {/* Glow ring behind button */}
           <motion.div
-            className="absolute -inset-4 rounded-lg pointer-events-none"
+            className="absolute -inset-4 rounded-lg pointer-events-none hidden md:block"
             initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.5, 0] }}
-            transition={{ duration: 2, delay: 3.5, repeat: Infinity, repeatDelay: 5 }}
+            animate={{ opacity: [0, 0.35, 0] }}
+            transition={{ duration: 2, delay: 3.5, repeat: Infinity, repeatDelay: 8 }}
             style={{
               background: 'radial-gradient(ellipse at center, hsl(355 83% 41% / 0.2), transparent 70%)',
-              filter: 'blur(15px)',
+              filter: 'blur(10px)',
             }}
           />
           <motion.button
             onClick={handleClick}
             disabled={loading}
-            className={`btn-fight pulse-glow text-lg relative ${loading ? 'opacity-40 cursor-not-allowed' : ''}`}
+            className={`btn-fight md:pulse-glow text-lg relative ${loading ? 'opacity-40 cursor-not-allowed' : ''}`}
             whileHover={{ scale: 1.03, boxShadow: '0 4px 50px hsla(355, 83%, 41%, 0.6)' }}
             whileTap={{ scale: 0.97 }}
           >
             {/* Shimmer sweep on button */}
             <motion.div
-              className="absolute inset-0 pointer-events-none overflow-hidden rounded"
+              className="absolute inset-0 pointer-events-none overflow-hidden rounded hidden md:block"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 3.5 }}
@@ -378,7 +391,7 @@ const HeroScreen = ({ onGenerate }: HeroScreenProps) => {
           transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
           style={{
             background: 'radial-gradient(circle, hsl(355 83% 41% / 0.12), transparent 70%)',
-            filter: 'blur(120px)',
+            filter: 'blur(72px)',
           }}
         />
       </div>

@@ -3,7 +3,7 @@ const BloodStainOverlay = () => {
     <>
       {/* Blood stain layer 1: full screen cover */}
       <div
-        className="fixed inset-0 z-[8] pointer-events-none"
+        className="fixed inset-0 z-[8] pointer-events-none hidden md:block"
         style={{
           backgroundImage: 'url(/blood-stain.png)',
           backgroundSize: 'cover',

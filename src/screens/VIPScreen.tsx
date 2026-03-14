@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionTemplate, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import type { UserData } from '../context/SessionContext';
 import { useCountUp } from '../hooks/useCountUp';
 import { getTierForFollowers, calculateAllocationDollars, calculateRewardSplit } from '../tierConfig';
@@ -92,6 +92,15 @@ export interface VIPCardHandle {
 
 export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, displayPoints, freePlayDollars, realPoints }, ref) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  const rotateXBase = useMotionValue(0);
+  const rotateYBase = useMotionValue(0);
+  const rotateX = useSpring(rotateXBase, { stiffness: 180, damping: 22, mass: 0.35 });
+  const rotateY = useSpring(rotateYBase, { stiffness: 180, damping: 22, mass: 0.35 });
+  const sheenAngle = useTransform(rotateYBase, (value) => 100 + value * 3);
+  const highlightX = useTransform(rotateYBase, (value) => `${50 + value * 2}%`);
+  const highlightY = useTransform(rotateXBase, (value) => `${45 + value * 2}%`);
+  const sheenBackground = useMotionTemplate`linear-gradient(${sheenAngle}deg, transparent 25%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 55%, transparent 75%)`;
+  const highlightBackground = useMotionTemplate`radial-gradient(circle at ${highlightX} ${highlightY}, rgba(255,255,255,0.15), transparent 50%)`;
 
   useImperativeHandle(ref, () => ({
     captureImage: async () => {
@@ -196,7 +205,6 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
       }
     },
   }));
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -206,10 +214,15 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
     const centerY = rect.top + rect.height / 2;
     const x = ((e.clientX - centerX) / rect.width) * 10;
     const y = -((e.clientY - centerY) / rect.height) * 10;
-    setTilt({ x: y, y: x });
-  }, []);
+    rotateXBase.set(y);
+    rotateYBase.set(x);
+  }, [rotateXBase, rotateYBase]);
 
-  const handleMouseLeave = useCallback(() => { setTilt({ x: 0, y: 0 }); setIsHovered(false); }, []);
+  const handleMouseLeave = useCallback(() => {
+    rotateXBase.set(0);
+    rotateYBase.set(0);
+    setIsHovered(false);
+  }, [rotateXBase, rotateYBase]);
 
   /*
    * Layout percentages based on 589×357 actual image:
@@ -221,7 +234,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
 
   return (
     <div className="mx-auto w-full" style={{ perspective: '1200px' }}>
-      <div
+      <motion.div
         ref={cardRef}
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
@@ -229,8 +242,10 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
         className="relative w-full rounded-2xl cursor-pointer transition-transform duration-200 ease-out animate-float"
         style={{
           aspectRatio: '589 / 357',
-          transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+          rotateX,
+          rotateY,
           transformStyle: 'preserve-3d',
+          willChange: 'transform',
         }}
       >
         <div
@@ -250,10 +265,10 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
           />
 
           {/* Holographic sheen on hover */}
-          <div
+          <motion.div
             className="absolute inset-0 pointer-events-none opacity-10 mix-blend-overlay rounded-2xl"
             style={{
-              background: `linear-gradient(${100 + tilt.y * 3}deg, transparent 25%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 55%, transparent 75%)`,
+              background: sheenBackground,
             }}
           />
 
@@ -270,10 +285,10 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
           </div>
 
           {/* Mouse-follow highlight */}
-          <div
+          <motion.div
             className="absolute inset-0 pointer-events-none opacity-10 rounded-2xl"
             style={{
-              background: `radial-gradient(circle at ${50 + tilt.y * 2}% ${45 + tilt.x * 2}%, rgba(255,255,255,0.15), transparent 50%)`,
+              background: highlightBackground,
             }}
           />
 
@@ -319,7 +334,7 @@ export const VIPCard = forwardRef<VIPCardHandle, VIPCardProps>(({ userData, disp
             </p>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 });
@@ -517,6 +532,11 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
   const [shareLoading, setShareLoading] = useState(false);
   const tweetTemplateIndexRef = useRef(0);
 
+  const closeShareModal = useCallback(() => {
+    setShowShareModal(false);
+    setShareUrlError('');
+  }, []);
+
   const handleShare = async () => {
     if (shareLoading) return;
     setShareLoading(true);
@@ -600,7 +620,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
     if (sharedKey) {
       try { localStorage.setItem(sharedKey, '1'); } catch { /* ignore */ }
     }
-    setShowShareModal(false);
+    closeShareModal();
     setShared(true);
   };
 
@@ -703,8 +723,8 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center px-4"
-            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
-            onClick={(e) => e.stopPropagation()}
+            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(3px)' }}
+            onClick={closeShareModal}
           >
             <motion.div
               key="share-modal"
@@ -715,9 +735,22 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               className="w-full max-w-md glass-panel rounded-2xl p-6 space-y-5 border border-rb-border"
               onClick={(e) => e.stopPropagation()}
             >
-              <div>
-                <h3 className="text-white font-bold text-lg font-display tracking-wide">Nice post! 🎉</h3>
-                <p className="text-rb-muted/60 text-sm mt-1">Paste your X post link below to verify your share. This is required to activate your rewards.</p>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-white font-bold text-lg font-display tracking-wide">Nice post! 🎉</h3>
+                  <p className="text-rb-muted/60 text-sm mt-1">Paste your X post link below to verify your share. This is required to activate your rewards.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeShareModal}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/60 transition-colors hover:border-white/20 hover:text-white"
+                  aria-label="Close share dialog"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
               </div>
 
               {pendingTweetUrl && (
@@ -746,6 +779,14 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               </div>
 
               <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeShareModal}
+                  className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 text-sm font-bold tracking-wider transition-colors"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  CLOSE
+                </button>
                 <button
                   onClick={handleShareConfirm}
                   className="w-full py-3 rounded-xl bg-[#1DA1F2]/20 hover:bg-[#1DA1F2]/30 text-[#1DA1F2] border border-[#1DA1F2]/30 text-sm font-bold tracking-wider transition-colors"
@@ -907,7 +948,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               )}
 
               {/* Referral link */}
-              {referralCode && (
+              {referralCode && shared && (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-3 py-2 rounded-lg bg-rb-card border border-rb-border text-[11px] sm:text-xs font-label text-white/60 overflow-hidden">
                     <span className="sm:hidden">{window.location.hostname}?ref={referralCode}</span>
@@ -927,7 +968,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               )}
 
               {/* Share referral on X */}
-              {referralCode && (
+              {referralCode && shared && (
                 <button
                   onClick={() => {
                     const refLink = `${window.location.origin}?ref=${referralCode}`;
@@ -946,6 +987,14 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                 </button>
               )}
 
+              {referralCode && !shared && (
+                <div className="rounded-lg border border-brand-red/10 bg-brand-red/[0.04] px-3 py-3">
+                  <p className="text-[11px] text-rb-muted/60 font-mono leading-relaxed">
+                    Share your VIP card first to unlock your referral buttons.
+                  </p>
+                </div>
+              )}
+
               {referredBy && referralReferredBonus > 0 && (
                 <p className="text-[10px] text-green-400/60 font-label tracking-wider">
                   ✓ Referred by @{referredBy} — +{referralReferredBonus} real rewards
@@ -953,7 +1002,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
               )}
 
               {/* Referred users list (expandable) */}
-              {referralCount > 0 && (
+              {shared && referralCount > 0 && (
                 <div>
                   <button
                     onClick={() => setShowReferralDetails(!showReferralDetails)}
@@ -1107,34 +1156,10 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <p className="text-rb-muted/60 text-xs font-mono leading-relaxed">
-                        Go to the casino. Place bets. Earn real rewards.
-                      </p>
-                      <a
-                        href="https://realbet.io"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full inline-flex items-center justify-center py-3.5 rounded-lg text-[#F2F2F2] text-sm sm:text-base font-bold font-display tracking-[0.14em] transition-all"
-                        style={{ background: 'linear-gradient(180deg, #BF1220 0%, #4D0000 100%)', boxShadow: '0 4px 25px hsla(355, 83%, 41%, 0.35)' }}
-                      >
-                        GO TO CASINO &rarr;
-                      </a>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-rb-muted/60 text-xs font-mono leading-relaxed">
-                        Quests, leaderboard, streaks & mystery boxes.
-                      </p>
-                      <a
-                        href="https://hub.realbet.io"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full inline-flex items-center justify-center py-3.5 rounded-lg bg-[#111118] text-brand-gold text-sm sm:text-base font-bold font-display tracking-[0.14em] border border-brand-gold/30 hover:bg-[#17171F] transition-colors"
-                      >
-                        ENTER THE HUB &rarr;
-                      </a>
-                    </div>
+                  <div className="rounded-xl border border-brand-red/10 bg-brand-red/[0.03] px-4 py-4 text-center">
+                    <p className="text-rb-muted/55 text-xs font-mono leading-relaxed">
+                      Share your VIP card to unlock the rest of your reward actions.
+                    </p>
                   </div>
                 </motion.div>
               ) : (
@@ -1331,7 +1356,7 @@ const VIPScreen = ({ userData, onLeaderboard, onLogout, onUpdatePoints }: VIPScr
             </AnimatePresence>
 
             {/* Leaderboard link */}
-            {onLeaderboard && (
+            {shared && onLeaderboard && (
               <button
                 onClick={onLeaderboard}
                 style={{ touchAction: 'manipulation' }}

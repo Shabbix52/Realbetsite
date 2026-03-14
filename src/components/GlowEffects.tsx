@@ -16,7 +16,7 @@ const GlowEffects = () => {
 
       {/* Layer 2 (z-[2]): Texture background */}
       <div
-        className="fixed inset-0 z-[2] pointer-events-none"
+        className="fixed inset-0 z-[2] pointer-events-none hidden md:block"
         style={{
           backgroundImage: 'url(/texture-bg.jpg)',
           backgroundSize: 'cover',
@@ -28,7 +28,7 @@ const GlowEffects = () => {
 
       {/* Layer 3 (z-[3]): Subtle ambient radials */}
       <div
-        className="fixed inset-0 z-[3] pointer-events-none"
+        className="fixed inset-0 z-[3] pointer-events-none hidden md:block"
         style={{
           background: [
             'radial-gradient(ellipse 120% 60% at 30% 40%, hsl(0 0% 20% / 0.05) 0%, transparent 70%)',
@@ -75,7 +75,7 @@ const GlowEffects = () => {
 
       {/* Layer 6 (z-[6]): SVG noise dust */}
       <div
-        className="fixed inset-0 z-[6] pointer-events-none"
+        className="fixed inset-0 z-[6] pointer-events-none hidden lg:block"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23dust)' opacity='0.04'/%3E%3C/svg%3E")`,
           mixBlendMode: 'overlay',
