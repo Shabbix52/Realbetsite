@@ -96,6 +96,12 @@ function saveBoxes(boxes: BoxData[]) {
   } catch { /* ignore */ }
 }
 
+function clearSavedBoxes() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
 function loadAuthState(): SavedAuthState | null {
   try {
     const saved = localStorage.getItem(AUTH_STATE_KEY);
@@ -117,13 +123,15 @@ interface BoxesScreenProps {
 }
 
 const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
-  // Load saved box results or start fresh
-  const savedBoxes = loadSavedBoxes();
-  const initialBoxes: BoxData[] = savedBoxes || [
+  const emptyBoxes: BoxData[] = [
     { type: 'bronze', state: 'ready', points: 0, tierName: '' },
     { type: 'silver', state: 'locked', points: 0, tierName: '' },
     { type: 'gold', state: 'locked', points: 0, tierName: '' },
   ];
+
+  // Load saved box results or start fresh
+  const savedBoxes = loadSavedBoxes();
+  const initialBoxes: BoxData[] = savedBoxes || emptyBoxes;
 
   // Determine the correct initial sub-screen from saved state
   function deriveSubScreen(b: BoxData[]): SubScreen {
@@ -162,6 +170,16 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
 
   // Refs for each box card — used to scroll it into view after reveal
   const boxRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const resetLocalProgress = useCallback((message?: string) => {
+    clearSavedBoxes();
+    setBoxes(emptyBoxes);
+    setSubScreen('boxes');
+    setAllDone(false);
+    setTasks({ follow: false, discord: false });
+    setDiscordError(null);
+    if (message) setBoxError(message);
+  }, []);
 
   // On mount: if twitterId is already set (from saved state or mobile OAuth redirect return),
   // sync scores + Discord linkage from DB — the OAuth callback won't fire in these cases.
@@ -220,9 +238,9 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
   const restoreScoresFromDB = useCallback(async (tid: string) => {
     try {
       const res = await fetch(getApiUrl(`/auth/scores/${tid}`));
-      if (!res.ok) return;
+      if (!res.ok) return false;
       const data = await res.json();
-      if (!data?.boxes) return;
+      if (!data?.boxes) return false;
 
       const restoredBoxes = data.boxes as BoxData[];
       setBoxes(restoredBoxes);
@@ -246,8 +264,10 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           follow: (inferredBonus - discordBonus) >= 500,
         }));
       }
+      return true;
     } catch (err) {
       console.error('[Boxes] Failed to restore scores from DB:', err);
+      return false;
     }
   }, []);
 
@@ -283,18 +303,22 @@ const BoxesScreen = ({ onComplete, onUserProfile }: BoxesScreenProps) => {
           // Ignore JSON parsing failure and keep fallback message.
         }
 
-        console.warn(`[Boxes] Score save rejected for ${tid}: ${errorMessage}`);
-
         if (
           errorMessage === 'Gold points out of tier range' ||
           errorMessage === 'Score verification failed' ||
           errorMessage === 'Total doesn\'t match box sum + task bonus'
         ) {
-          await restoreScoresFromDB(tid);
+          const restored = await restoreScoresFromDB(tid);
+          if (!restored && errorMessage === 'Score verification failed') {
+            resetLocalProgress('Your saved box progress was outdated and has been reset. Open Bronze to start again.');
+            return;
+          }
         }
+
+        console.warn(`[Boxes] Score save rejected for ${tid}: ${errorMessage}`);
       }
     } catch { /* non-blocking */ }
-  }, [twitterId, twitterUsername, followersCount, tasks, restoreScoresFromDB]);
+  }, [twitterId, twitterUsername, followersCount, tasks, resetLocalProgress, restoreScoresFromDB]);
 
   const taskBonusPoints = (tasks.follow ? TASK_BONUS : 0) + (tasks.discord ? TASK_BONUS : 0);
   const totalPoints = boxes.reduce((sum, b) => sum + b.points, 0) + taskBonusPoints;
