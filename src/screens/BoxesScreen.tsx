@@ -1,6 +1,6 @@
 ﻿import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { UserData } from '../App';
+import type { UserData } from '../context/SessionContext';
 import { useCountUp } from '../hooks/useCountUp';
 import { useOAuthPopup } from '../hooks/useOAuthPopup';
 import { getApiUrl } from '../config';

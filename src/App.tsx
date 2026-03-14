@@ -2,148 +2,19 @@ import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import GlowEffects from './components/GlowEffects';
 import BloodStainOverlay from './components/BloodStainOverlay';
+import { useSession } from './context/SessionContext';
 import HeroScreen from './screens/HeroScreen';
 import BoxesScreen from './screens/BoxesScreen';
 import VIPScreen from './screens/VIPScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import AdminScreen from './screens/AdminScreen';
-import { sanitizeAvatarUrl } from './config';
 
 export type Screen = 'hero' | 'boxes' | 'vip' | 'leaderboard' | 'admin';
 
-export interface UserData {
-  twitterId: string;
-  username: string;
-  pfp: string;
-  tierName: string;
-  totalPoints: number;
-  followersCount: number;
-  isNewUser?: boolean;
-}
-
-const USER_PROFILE_KEY = 'realbet_user_profile';
-const REFERRAL_CODE_KEY = 'realbet_referral_code';
-
-function loadUserProfile(): Partial<UserData> | null {
-  try {
-    const saved = localStorage.getItem(USER_PROFILE_KEY);
-    if (!saved) return null;
-    return JSON.parse(saved);
-  } catch { return null; }
-}
-
-function saveUserProfile(data: { twitterId: string; username: string; pfp: string; isNewUser?: boolean; totalPoints?: number; followersCount?: number; tierName?: string }) {
-  try {
-    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(data));
-  } catch { /* ignore */ }
-}
-
-// Capture referral code from URL on first load
-function captureReferralCode() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const refCode = params.get('ref');
-    if (refCode) {
-      localStorage.setItem(REFERRAL_CODE_KEY, refCode.toUpperCase());
-      // Clean URL
-      const url = new URL(window.location.href);
-      url.searchParams.delete('ref');
-      window.history.replaceState({}, '', url.pathname + url.hash);
-    }
-  } catch { /* ignore */ }
-}
-
-captureReferralCode();
-
-// Process mobile OAuth redirect return (?ob=<base64url_payload>)
-// Must run before React renders so BoxesScreen picks up saved auth state
-const AUTH_STATE_KEY_APP = 'realbet_auth_state';
-function processMobileOAuthReturn(): { twitterId: string; username: string; pfp: string; isNewUser?: boolean } | null {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const ob = params.get('ob');
-    if (!ob) return null;
-
-    // Clean the URL immediately
-    const url = new URL(window.location.href);
-    url.searchParams.delete('ob');
-    window.history.replaceState({}, '', url.pathname + (url.search || '') + (url.hash || ''));
-
-    // Decode base64url payload
-    const json = atob(ob.replace(/-/g, '+').replace(/_/g, '/'));
-    const result = JSON.parse(json);
-    if (!result || typeof result.success !== 'boolean' || !result.provider) return null;
-    if (!result.success || !result.user) return null;
-
-    const user = result.user;
-    if (typeof user.id !== 'string' || user.id.length > 100) return null;
-    if (typeof user.username !== 'string' || user.username.length > 100) return null;
-    if (user.avatar !== undefined && typeof user.avatar !== 'string') return null;
-    if (user.followersCount !== undefined && (
-      typeof user.followersCount !== 'number' ||
-      user.followersCount < 0 ||
-      user.followersCount > 10_000_000
-    )) return null;
-
-    const pfp = sanitizeAvatarUrl(
-      user.avatar
-        ? user.avatar.replace('_normal', '_400x400')
-        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
-    );
-
-    // Write auth state for BoxesScreen to read on mount
-    const existingRaw = localStorage.getItem(AUTH_STATE_KEY_APP);
-    const existing = existingRaw ? JSON.parse(existingRaw) : null;
-    if (result.provider === 'twitter') {
-      localStorage.setItem(AUTH_STATE_KEY_APP, JSON.stringify({
-        twitterVerified: true,
-        twitterId: user.id,
-        twitterUsername: user.username,
-        followersCount: user.followersCount || 0,
-        discordVerified: existing?.discordVerified || false,
-        discordUserId: existing?.discordUserId || null,
-        tasks: { follow: existing?.tasks?.follow || false, discord: existing?.tasks?.discord || false },
-      }));
-      return { twitterId: user.id, username: user.username, pfp, isNewUser: user.isNewUser };
-    }
-    if (result.provider === 'discord') {
-      localStorage.setItem(AUTH_STATE_KEY_APP, JSON.stringify({
-        twitterVerified: existing?.twitterVerified || false,
-        twitterId: existing?.twitterId || null,
-        twitterUsername: existing?.twitterUsername || null,
-        followersCount: existing?.followersCount || 0,
-        discordVerified: true,
-        discordUserId: user.id,
-        tasks: { follow: existing?.tasks?.follow || false, discord: existing?.tasks?.discord || false },
-      }));
-      return existing?.twitterId ? { twitterId: existing.twitterId, username: existing.twitterUsername || '', pfp } : null;
-    }
-    return null;
-  } catch { return null; }
-}
-const mobileOAuthResult = processMobileOAuthReturn();
-
-// Capture claim result from hub connect callback redirect
-const CLAIM_RESULT_KEY = 'realbet_claim_result';
-function captureClaimResult(): string | null {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const result = params.get('claim_result');
-    if (!result) return null;
-    localStorage.setItem(CLAIM_RESULT_KEY, result);
-    // Clean URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete('claim_result');
-    url.searchParams.delete('claim_msg');
-    window.history.replaceState({}, '', url.pathname + (url.search || '') + (url.hash || ''));
-    return result;
-  } catch { return null; }
-}
-const claimResult = captureClaimResult();
-
 function App() {
+  const { userData, mobileOAuthResult, claimResult, setUserProfile, setUserProgress, setUserPoints, logout } = useSession();
   const [screen, setScreen] = useState<Screen>(() => {
-    if (claimResult && loadUserProfile()?.twitterId) return 'vip';
+    if (claimResult && userData.twitterId) return 'vip';
     if (mobileOAuthResult) return 'boxes';
     if (window.location.hash === '#admin') return 'admin';
     return 'hero';
@@ -154,66 +25,27 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [screen]);
 
-  const savedProfile = loadUserProfile();
-  const [userData, setUserData] = useState<UserData>(() => {
-    const profile: Partial<UserData> | null = mobileOAuthResult || savedProfile;
-    if (mobileOAuthResult) {
-      // Persist the returned profile so future mounts don't need the URL param
-      try { localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(mobileOAuthResult)); } catch { /* ignore */ }
-    }
-    return {
-      twitterId: profile?.twitterId || '',
-      username: profile?.username || 'degen_whale',
-      pfp: profile?.pfp || 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale',
-      tierName: profile?.tierName || 'House Legend',
-      totalPoints: profile?.totalPoints || 0,
-      followersCount: profile?.followersCount || 0,
-      isNewUser: mobileOAuthResult?.isNewUser,
-    };
-  });
-
   const handleGenerateClick = useCallback(() => {
     setScreen('boxes');
   }, []);
 
   const handleUserProfileUpdate = useCallback((twitterId: string, username: string, pfp: string, isNewUser?: boolean) => {
-    setUserData(prev => {
-      const updated = { ...prev, twitterId, username, pfp: sanitizeAvatarUrl(pfp), isNewUser };
-      saveUserProfile(updated);
-      return updated;
-    });
-  }, []);
+    setUserProfile(twitterId, username, pfp, isNewUser);
+  }, [setUserProfile]);
 
   const handleBoxesDone = useCallback((points: number, tierName: string, followersCount: number) => {
-    setUserData(prev => {
-      const updated = { ...prev, totalPoints: points, tierName, followersCount };
-      saveUserProfile(updated);
-      return updated;
-    });
+    setUserProgress(points, tierName, followersCount);
     setScreen('vip');
-  }, []);
+  }, [setUserProgress]);
 
   const handleUpdatePoints = useCallback((totalPoints: number, followersCount: number) => {
-    setUserData(prev => {
-      const updated = { ...prev, totalPoints, followersCount };
-      saveUserProfile(updated);
-      return updated;
-    });
-  }, []);
+    setUserPoints(totalPoints, followersCount);
+  }, [setUserPoints]);
 
   const handleLogout = useCallback(() => {
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        // Keep realbet_shared_* keys — they're per-user and restored from DB anyway
-        if (key && key.startsWith('realbet_') && !key.startsWith('realbet_shared_')) keysToRemove.push(key);
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-    } catch { /* ignore */ }
-    setUserData({ twitterId: '', username: 'degen_whale', pfp: 'https://api.dicebear.com/7.x/avataaars/svg?seed=degen_whale', tierName: 'House Legend', totalPoints: 0, followersCount: 0 });
+    logout();
     setScreen('hero');
-  }, []);
+  }, [logout]);
 
   // Check URL hash for admin route on load
   useEffect(() => {

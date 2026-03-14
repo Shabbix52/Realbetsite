@@ -1,6 +1,6 @@
 ﻿import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { UserData } from '../App';
+import type { UserData } from '../context/SessionContext';
 import { useCountUp } from '../hooks/useCountUp';
 import { getTierForFollowers, calculateAllocationDollars, calculateRewardSplit } from '../tierConfig';
 import { getApiUrl, sanitizeAvatarUrl } from '../config';
